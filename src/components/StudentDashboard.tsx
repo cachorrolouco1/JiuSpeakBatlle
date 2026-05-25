@@ -841,20 +841,22 @@ export default function StudentDashboard({
               <span>Perfil & Faixa</span>
             </button>
 
-            <button
-              onClick={() => { setActiveTab('finance'); setMobileMenuOpen(false); }}
-              className={`w-full text-left py-3 px-3.5 rounded-xl font-medium text-xs font-mono uppercase tracking-wider flex items-center gap-3 transition-all ${
-                activeTab === 'finance'
-                  ? 'bg-gradient-to-r from-amber-500/15 via-amber-950/20 to-transparent text-amber-500 border-l-2 border-amber-600 font-bold shadow'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900/40'
-              }`}
-            >
-              <TrendingUp className={`w-4 h-4 ${activeTab === 'finance' ? 'text-amber-500' : 'text-neutral-400'}`} />
-              <span>Painel Financeiro Admin</span>
-              <span className="ml-auto bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[8px] font-sans font-black px-1.5 py-0.5 rounded uppercase leading-none animate-pulse">
-                SaaS 📊
-              </span>
-            </button>
+            {user?.role === 'ADMIN' && (
+              <button
+                onClick={() => { setActiveTab('finance'); setMobileMenuOpen(false); }}
+                className={`w-full text-left py-3 px-3.5 rounded-xl font-medium text-xs font-mono uppercase tracking-wider flex items-center gap-3 transition-all ${
+                  activeTab === 'finance'
+                    ? 'bg-gradient-to-r from-amber-500/15 via-amber-950/20 to-transparent text-amber-500 border-l-2 border-amber-600 font-bold shadow'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900/40'
+                }`}
+              >
+                <TrendingUp className={`w-4 h-4 ${activeTab === 'finance' ? 'text-amber-500' : 'text-neutral-400'}`} />
+                <span>Painel Financeiro Admin</span>
+                <span className="ml-auto bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[8px] font-sans font-black px-1.5 py-0.5 rounded uppercase leading-none animate-pulse">
+                  SaaS 📊
+                </span>
+              </button>
+            )}
 
           </nav>
         </div>
@@ -1449,7 +1451,17 @@ export default function StudentDashboard({
               animate={{ opacity: 1 }} 
               className="space-y-6"
             >
-              <FinanceAdminDashboard />
+              {user?.role === 'ADMIN' ? (
+                <FinanceAdminDashboard />
+              ) : (
+                <div className="bg-[#030303] border border-red-950 rounded-3xl p-8 max-w-lg mx-auto text-center my-12 shadow-2xl">
+                  <span className="text-4xl">🔒</span>
+                  <h3 className="text-lg font-black font-sans uppercase tracking-wider text-red-500 mt-4">Acesso restrito.</h3>
+                  <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
+                    Você não possui as permissões (RBAC ADMIN) necessárias para acessar o painel financeiro. Se você for um administrador, acesse pelo portal administrativo com verificação de duas etapas (2FA).
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 

@@ -13,6 +13,10 @@ export interface UserProfile {
   streak: number;
   email_verified: boolean;
   is_online: boolean;
+  role?: 'ADMIN' | 'MODERATOR' | 'USER';
+  is_admin?: boolean;
+  permissions?: string[];
+  last_login?: string;
   created_at: string;
 }
 

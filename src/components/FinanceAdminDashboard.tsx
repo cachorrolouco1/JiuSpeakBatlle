@@ -118,6 +118,18 @@ export default function FinanceAdminDashboard() {
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [logs, setLogs] = useState<SecurityLog[]>([]);
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
+
+  if (!user || user.role !== 'ADMIN') {
+    return (
+      <div className="bg-[#030303] border border-red-950 rounded-3xl p-8 max-w-lg mx-auto text-center my-12 shadow-2xl">
+        <span className="text-4xl">🔒</span>
+        <h3 className="text-lg font-black font-sans uppercase tracking-wider text-red-500 mt-4">Acesso restrito.</h3>
+        <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
+          Você não possui os privilégios de acesso necessários para visualizar as informações financeiras ou realizar saques. Apenas administradores habilitados cadastrados no RBAC ADMIN podem visualizar estes dados.
+        </p>
+      </div>
+    );
+  }
   
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');

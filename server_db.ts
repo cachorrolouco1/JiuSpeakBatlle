@@ -27,6 +27,10 @@ export interface UserRow {
   verification_token?: string;
   reset_token?: string;
   reset_token_expiry?: string;
+  role?: 'ADMIN' | 'MODERATOR' | 'USER';
+  permissions?: string[];
+  last_login?: string;
+  is_admin?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -338,6 +342,9 @@ const DEFAULTS: UserRow[] = [
     is_vip: true,
     is_online: true,
     email_verified: true,
+    role: "ADMIN",
+    is_admin: true,
+    permissions: ["all"],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -357,6 +364,9 @@ const DEFAULTS: UserRow[] = [
     is_vip: false,
     is_online: false,
     email_verified: true,
+    role: "MODERATOR",
+    is_admin: false,
+    permissions: ["moderate"],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -506,6 +516,47 @@ class DatabaseManager {
       if (fs.existsSync(DB_FILE)) {
         const data = fs.readFileSync(DB_FILE, 'utf8');
         this.users = JSON.parse(data);
+        
+        let updated = false;
+        this.users = this.users.map(u => {
+          let hasChange = false;
+          let role = u.role;
+          let is_admin = u.is_admin;
+          let permissions = u.permissions;
+          
+          if (u.email === 'lucas.spider@jiuspeak.com' || u.id === 'u1') {
+            if (role !== 'ADMIN' || !is_admin) {
+              role = 'ADMIN';
+              is_admin = true;
+              permissions = ['all'];
+              hasChange = true;
+            }
+          } else if (u.email === 'marcus.miller@jiuspeak.com' || u.id === 'u2') {
+            if (role !== 'MODERATOR') {
+              role = 'MODERATOR';
+              is_admin = false;
+              permissions = ['moderate'];
+              hasChange = true;
+            }
+          } else {
+            if (!role) {
+              role = 'USER';
+              is_admin = false;
+              permissions = ['user'];
+              hasChange = true;
+            }
+          }
+          
+          if (hasChange) {
+            updated = true;
+            return { ...u, role, is_admin, permissions };
+          }
+          return u;
+        });
+        
+        if (updated) {
+          this.save();
+        }
       } else {
         this.users = [...DEFAULTS];
         this.save();
@@ -1341,6 +1392,9 @@ class DatabaseManager {
       streak: 1,
       is_online: true,
       email_verified: false, // starts unverified but with dynamic verification capabilities!
+      role: 'USER',
+      is_admin: false,
+      permissions: ['user'],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

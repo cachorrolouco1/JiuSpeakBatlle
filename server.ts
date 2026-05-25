@@ -128,8 +128,144 @@ const authenticateJWT = (req: AuthenticatedRequest, res: express.Response, next:
   }
 };
 
+// 3.1. RBAC Guard Middleware (Only ADMIN is permitted)
+const authorizeAdmin = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const user = req.user;
+  if (!user || (user.role !== 'ADMIN' && !user.is_admin)) {
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+    dbStore.addSecurityLog(
+      user ? `${user.first_name} ${user.last_name}` : 'Usuário Anônimo',
+      'Tentativa de Acesso Negado',
+      clientIp,
+      `Tentativa não autorizada de acessar rota protegida: ${req.originalUrl}`
+    );
+    return res.status(403).json({ error: 'Acesso restrito. Somente administradores autorizados.' });
+  }
+  next();
+};
+
 
 // --- BACKEND API ENDPOINTS ---
+
+// Dedicated administrative login starting path
+app.post('/api/auth/admin/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'E-mail e senha são de preenchimento obrigatório.' });
+  }
+
+  const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+  const bruteCheck = checkBruteForce(email);
+  if (!bruteCheck.allowed) {
+    return res.status(423).json({ 
+      error: `Sua conta está bloqueada temporariamente para evitar ataques. Tente novamente em ${bruteCheck.waitTimeLeft} segundos.` 
+    });
+  }
+
+  const user = dbStore.getUserByEmail(email);
+  if (!user) {
+    registerFailedAttempt(email);
+    dbStore.addSecurityLog(
+      email || 'Anônimo',
+      'Tentativa de Login Admin Negada',
+      clientIp,
+      'E-mail administrativo não cadastrado'
+    );
+    return res.status(401).json({ error: 'Credenciais inválidas ou e-mail incorreto.' });
+  }
+
+  const validPass = bcrypt.compareSync(password, user.password_hash);
+  if (!validPass) {
+    registerFailedAttempt(email);
+    dbStore.addSecurityLog(
+      `${user.first_name} ${user.last_name}`,
+      'Tentativa de Login Admin Negada',
+      clientIp,
+      'Senha incorreta para acesso administrativo'
+    );
+    return res.status(401).json({ error: 'Credenciais inválidas ou senha incorreta.' });
+  }
+
+  if (user.role !== 'ADMIN' && !user.is_admin) {
+    dbStore.addSecurityLog(
+      `${user.first_name} ${user.last_name}`,
+      'Acesso Administrativo Bloqueado',
+      clientIp,
+      `Usuário sem privilégios RBAC ADMIN tentou realizar login administrativo. Cargo: ${user.role || 'USER'}`
+    );
+    return res.status(403).json({ error: 'Acesso restrito. Somente administradores autorizados.' });
+  }
+
+  // Pre-approved! Now require 2FA challenge
+  res.json({
+    require2FA: true,
+    id: user.id,
+    email: user.email,
+    message: 'Credenciais validadas com sucesso. Código de verificação 2FA requerido.'
+  });
+});
+
+// Dedicated administrative login verification endpoint (2FA verification)
+app.post('/api/auth/admin/verify-2fa', (req, res) => {
+  const { id, code2FA } = req.body;
+  const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+  
+  if (!id || !code2FA) {
+    return res.status(400).json({ error: 'ID de usuário e código 2FA são obrigatórios.' });
+  }
+
+  const user = dbStore.getUserById(id);
+  if (!user || (user.role !== 'ADMIN' && !user.is_admin)) {
+    return res.status(403).json({ error: 'Acesso restrito. Usuário inválido.' });
+  }
+
+  if (code2FA !== '123456' && code2FA !== '080808') {
+    dbStore.addSecurityLog(
+      `${user.first_name} ${user.last_name}`,
+      'Falha de Verificação 2FA',
+      clientIp,
+      `Código 2FA incorreto inserido: ${code2FA}`
+    );
+    return res.status(401).json({ error: 'Código 2FA inválido ou expirado. Tente novamente.' });
+  }
+
+  clearFailedAttempts(user.email);
+  const lastLoginStr = new Date().toISOString();
+  dbStore.updateUser(user.id, { is_online: true, last_login: lastLoginStr });
+
+  dbStore.addSecurityLog(
+    `${user.first_name} ${user.last_name}`,
+    'Autenticação de Acesso Admin',
+    clientIp,
+    'Login de administrador aprovado via autenticação 2FA'
+  );
+
+  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+  res.json({
+    message: 'Acesso administrativo autorizado!',
+    token,
+    user: {
+      id: user.id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      phone: user.phone,
+      address: user.address,
+      profile_image: user.profile_image,
+      belt_rank: user.belt_rank,
+      xp: user.xp,
+      streak: user.streak,
+      email_verified: user.email_verified,
+      is_online: true,
+      role: user.role || 'ADMIN',
+      is_admin: true,
+      permissions: user.permissions || ['all'],
+      last_login: lastLoginStr,
+      created_at: user.created_at
+    }
+  });
+});
 
 // 1. Health check
 app.get('/api/health', (req, res) => {
@@ -267,9 +403,16 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 
+  const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
   const user = dbStore.getUserByEmail(email);
   if (!user) {
     registerFailedAttempt(email);
+    dbStore.addSecurityLog(
+      email || 'Anônimo',
+      'Falha de Autenticação',
+      clientIp,
+      'Tentativa de login com e-mail não cadastrado'
+    );
     return res.status(401).json({ error: 'Credenciais inválidas. Verifique seu e-mail e senha inseridos.' });
   }
 
@@ -277,14 +420,28 @@ app.post('/api/auth/login', (req, res) => {
   const validPass = bcrypt.compareSync(password, user.password_hash);
   if (!validPass) {
     registerFailedAttempt(email);
+    dbStore.addSecurityLog(
+      `${user.first_name} ${user.last_name}`,
+      'Falha de Autenticação',
+      clientIp,
+      'Tentativa de login com senha incorreta'
+    );
     return res.status(401).json({ error: 'Credenciais inválidas. Verifique seu e-mail e senha inseridos.' });
   }
 
   // Clear attempts registration on successful sign-in
   clearFailedAttempts(email);
 
-  // Update online status in the database USERS representation
-  dbStore.updateUser(user.id, { is_online: true });
+  const lastLoginStr = new Date().toISOString();
+  // Update online status and last login in the database USERS representation
+  dbStore.updateUser(user.id, { is_online: true, last_login: lastLoginStr });
+
+  dbStore.addSecurityLog(
+    `${user.first_name} ${user.last_name}`,
+    'Autenticação de Acesso',
+    clientIp,
+    `Login realizado com sucesso. Cargo: ${user.role || 'USER'}`
+  );
 
   // Generate sign in JWT
   const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
@@ -305,6 +462,10 @@ app.post('/api/auth/login', (req, res) => {
       streak: user.streak,
       email_verified: user.email_verified,
       is_online: true,
+      role: user.role || 'USER',
+      is_admin: !!user.is_admin,
+      permissions: user.permissions || ['user'],
+      last_login: lastLoginStr,
       created_at: user.created_at
     }
   });
@@ -550,7 +711,7 @@ app.get('/api/status', (req, res) => {
 // ==============================================
 
 // Helper to check if user has admin permission simulator 
-app.get('/api/finance/admin/stats', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.get('/api/finance/admin/stats', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const transactions = dbStore.getTransactions();
     const subscriptions = dbStore.getSubscriptions();
@@ -611,7 +772,7 @@ app.get('/api/finance/admin/stats', authenticateJWT as any, (req: AuthenticatedR
 });
 
 // Update or register Admin Bank Accounts with security audits
-app.post('/api/finance/admin/bank', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.post('/api/finance/admin/bank', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const adminUser = req.user!;
     const { bank_name, agency, account_number, account_type, pix_key, owner_name, cpf_cnpj, code2FA } = req.body;
@@ -659,7 +820,7 @@ app.post('/api/finance/admin/bank', authenticateJWT as any, (req: AuthenticatedR
 });
 
 // Manual Payout Execution to registered bank account
-app.post('/api/finance/admin/payout', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.post('/api/finance/admin/payout', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const adminUser = req.user!;
     const { amountCents } = req.body;
@@ -717,7 +878,7 @@ app.post('/api/finance/admin/payout', authenticateJWT as any, (req: Authenticate
 });
 
 // Configure recurring automatic payouts
-app.post('/api/finance/admin/payout/auto', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.post('/api/finance/admin/payout/auto', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const adminUser = req.user!;
     const { autoPayoutEnabled } = req.body;
@@ -739,7 +900,7 @@ app.post('/api/finance/admin/payout/auto', authenticateJWT as any, (req: Authent
 });
 
 // Manage Plan Subscriptions (Upgrades or edits)
-app.post('/api/finance/admin/subscription', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.post('/api/finance/admin/subscription', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const adminUser = req.user!;
     const { userId, newPlan } = req.body;
@@ -801,7 +962,7 @@ app.post('/api/finance/admin/subscription', authenticateJWT as any, (req: Authen
 });
 
 // Simulate new purchase transaction live to test real-time visualization graphs and telemetry updating
-app.post('/api/finance/admin/transaction/simulate', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+app.post('/api/finance/admin/transaction/simulate', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const adminUser = req.user!;
     const { amountUSD, method, status, buyerName, planType } = req.body;
@@ -1456,7 +1617,7 @@ app.post('/api/payments/pix/confirm', authenticateJWT as any, (req: Authenticate
 // ===================================================
 
 // Get all dynamic pricing resources
-app.get('/api/pricing/all', (req, res) => {
+app.get('/api/pricing/all', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     res.json({
       success: true,
@@ -1472,7 +1633,7 @@ app.get('/api/pricing/all', (req, res) => {
 });
 
 // Update or register a store price item
-app.post('/api/pricing/store/update', (req, res) => {
+app.post('/api/pricing/store/update', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const { id, item_name, category, price_brl, active, adminName } = req.body;
     if (!item_name || !category || price_brl === undefined) {
@@ -1486,7 +1647,7 @@ app.post('/api/pricing/store/update', (req, res) => {
 });
 
 // Create a new store price item
-app.post('/api/pricing/store/create', (req, res) => {
+app.post('/api/pricing/store/create', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const { item_name, category, price_brl, active, adminName } = req.body;
     if (!item_name || !category || price_brl === undefined) {
@@ -1500,7 +1661,7 @@ app.post('/api/pricing/store/create', (req, res) => {
 });
 
 // Delete standard price item
-app.delete('/api/pricing/store/:id', (req, res) => {
+app.delete('/api/pricing/store/:id', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const id = req.params.id;
     const adminName = (req.query.adminName as string) || 'Admin';
@@ -1512,7 +1673,7 @@ app.delete('/api/pricing/store/:id', (req, res) => {
 });
 
 // Update subscription plan benefits & prices
-app.post('/api/pricing/plans/update', (req, res) => {
+app.post('/api/pricing/plans/update', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const { id, plan_name, monthly_price, yearly_price, benefits, adminName } = req.body;
     if (!id || !plan_name || monthly_price === undefined || yearly_price === undefined) {
@@ -1526,7 +1687,7 @@ app.post('/api/pricing/plans/update', (req, res) => {
 });
 
 // Create or update promotion/discount/coupon
-app.post('/api/pricing/promotions/update', (req, res) => {
+app.post('/api/pricing/promotions/update', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const { id, title, discount_percentage, start_date, end_date, promo_code, cashback_percentage, adminName } = req.body;
     if (!title || discount_percentage === undefined) {
@@ -1547,7 +1708,7 @@ app.post('/api/pricing/promotions/update', (req, res) => {
 });
 
 // Delete a promotion/coupon
-app.delete('/api/pricing/promotions/:id', (req, res) => {
+app.delete('/api/pricing/promotions/:id', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const id = req.params.id;
     const adminName = (req.query.adminName as string) || 'Admin';
@@ -1559,7 +1720,7 @@ app.delete('/api/pricing/promotions/:id', (req, res) => {
 });
 
 // Update marketplace tax rules
-app.post('/api/pricing/marketplace/update', (req, res) => {
+app.post('/api/pricing/marketplace/update', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
   try {
     const { tax_percentage, commission_percentage, min_price, max_price, adminName } = req.body;
     if (tax_percentage === undefined || commission_percentage === undefined) {

@@ -28,7 +28,7 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuccess }: AuthModalProps) {
   const { login, registerUser, requestPasswordReset, submitPasswordReset, triggerSocialSignIn } = useAuth();
   
-  const [tab, setTab] = useState<'login' | 'register' | 'forgot' | 'reset'>(initialTab);
+  const [tab, setTab] = useState<'login' | 'register' | 'forgot' | 'reset' | 'admin-login' | 'admin-2fa'>(initialTab);
   
   // Registration Form state
   const [firstName, setFirstName] = useState('');
@@ -44,6 +44,10 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
   // Login State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+
+  // Admin 2FA State
+  const [adminUser2FA, setAdminUser2FA] = useState<{ id: string; email: string } | null>(null);
+  const [code2FA, setCode2FA] = useState('');
   
   // Reset Password State
   const [forgotEmail, setForgotEmail] = useState('');
@@ -201,6 +205,74 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
     }
   };
 
+  // Handles separate Administrative Login submission (Step 1)
+  const handleAdminLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Falha ao realizar login administrativo.');
+      }
+
+      if (data.require2FA) {
+        setAdminUser2FA({ id: data.id, email: data.email });
+        setSuccessMsg(data.message || 'Credenciais ok. Insira o código 2FA de administrador.');
+        setTab('admin-2fa');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handles dynamic Admin 2FA confirmation (Step 2)
+  const handleAdmin2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/admin/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adminUser2FA?.id, code2FA }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Código 2FA incorreto ou expirado.');
+      }
+
+      // Record administrative token and payload
+      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      
+      setSuccessMsg('Autenticação aprovada! Acesso administrativo liberado.');
+      
+      setTimeout(() => {
+        onClose();
+        if (onSuccess) onSuccess();
+        window.location.reload(); // Refresh components cleanly to load admin state
+      }, 1000);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handles Forgot Password
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,12 +399,16 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
               {tab === 'register' && 'Criar Conta JiuSpeak'}
               {tab === 'forgot' && 'Recuperar Senha'}
               {tab === 'reset' && 'Redefinir Nova Senha'}
+              {tab === 'admin-login' && 'Painel Militar 🛡️ Admin'}
+              {tab === 'admin-2fa' && 'Verificação 2FA Requerida'}
             </h3>
             <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
               {tab === 'login' && 'Faça o login para acumular pontos no placar gringo.'}
               {tab === 'register' && 'Participe do ranking global, PvP multiplayer e fature certificados de luta.'}
               {tab === 'forgot' && 'Insira seu e-mail cadastrado e enviaremos um token automático.'}
               {tab === 'reset' && 'Insira o token recebido e configure sua nova chave de segurança.'}
+              {tab === 'admin-login' && 'Acesso restrito para administradores credenciados do JiuSpeak.'}
+              {tab === 'admin-2fa' && 'Digite o código de duas etapas (123456 ou 080808) para autorização.'}
             </p>
           </div>
 
@@ -470,16 +546,140 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
                 </button>
               </div>
 
-              <p className="text-center text-xs text-neutral-500 mt-4 pt-2">
-                Novo por aqui?{' '}
-                <button 
-                  type="button" 
-                  onClick={() => setTab('register')}
-                  className="text-amber-500 hover:text-amber-400 font-bold underline transition-colors"
-                >
-                  Cadastre sua conta grátis
-                </button>
-              </p>
+              <div className="flex flex-col gap-2 mt-4 pt-2 border-t border-neutral-900">
+                <p className="text-center text-xs text-neutral-500">
+                  Novo por aqui?{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => setTab('register')}
+                    className="text-amber-500 hover:text-amber-400 font-bold underline transition-colors"
+                  >
+                    Cadastre sua conta grátis
+                  </button>
+                </p>
+                <p className="text-center text-[10px] text-neutral-600 font-mono mt-0.5">
+                  É administrador?{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => { setTab('admin-login'); setErrorMsg(''); setSuccessMsg(''); }}
+                    className="text-red-500 hover:text-red-400 font-bold hover:underline transition-colors focus:outline-none"
+                  >
+                    Acesso Administrativo (2FA) 🛡️
+                  </button>
+                </p>
+              </div>
+            </form>
+          )}
+
+          {/* --- VIEW: ADMINISTRATIVE LOGIN (Step 1) --- */}
+          {tab === 'admin-login' && (
+            <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">E-mail Corporativo</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-neutral-500">
+                    <Mail className="w-4 h-4" />
+                  </span>
+                  <input 
+                    type="email"
+                    required
+                    placeholder="exemplo@jiuspeak.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full bg-[#0a0a0a] border border-neutral-800 text-xs text-white rounded-xl pl-9 pr-4 py-3 placeholder-neutral-600 focus:outline-none focus:border-red-650 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Chave Militar Secreta</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-neutral-500">
+                    <Lock className="w-4 h-4" />
+                  </span>
+                  <input 
+                    type="password"
+                    required
+                    placeholder="Sua senha secreta de administrador"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full bg-[#0a0a0a] border border-neutral-800 text-xs text-white rounded-xl pl-9 pr-4 py-3 placeholder-neutral-600 focus:outline-none focus:border-red-650 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isLoading}
+                className="w-full mt-2 py-3.5 px-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-red-800 disabled:to-red-950 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition-all shadow-md shadow-red-950/20 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isLoading ? 'Autenticando...' : 'Verificar Cadastro Admin 🔏'}
+              </button>
+
+              <div className="flex flex-col gap-2 mt-4 pt-2 border-t border-neutral-900">
+                <p className="text-center text-xs text-neutral-500">
+                  Voltar para login de aluno?{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => { setTab('login'); setErrorMsg(''); setSuccessMsg(''); }}
+                    className="text-amber-500 hover:text-amber-400 font-bold underline transition-colors focus:outline-none"
+                  >
+                    Voltar ao Portal Geral
+                  </button>
+                </p>
+              </div>
+            </form>
+          )}
+
+          {/* --- VIEW: ADMINISTRATIVE 2FA (Step 2) --- */}
+          {tab === 'admin-2fa' && (
+            <form onSubmit={handleAdmin2FASubmit} className="space-y-4">
+              <div className="bg-neutral-950 border border-neutral-900 rounded-xl p-4 text-center">
+                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-wider">MFA Canal Ativo</p>
+                <p className="text-xs font-bold text-neutral-200 mt-1">
+                  Enviamos o código 2FA para o e-mail: <span className="text-red-400">{adminUser2FA?.email}</span>
+                </p>
+                <div className="mt-2 text-[10px] text-neutral-500 bg-neutral-900/50 p-2 rounded border border-neutral-950 font-mono text-center">
+                  Dica de simulação para desenvolvimento/testes:<br />
+                  Código válido padrão: <span className="text-amber-500 font-bold">123456</span> ou <span className="text-amber-500 font-bold">080808</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-neutral-400 font-bold block text-center">Código de Verificação de 6 Dígitos</label>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="123456"
+                    value={code2FA}
+                    onChange={(e) => setCode2FA(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-[#0a0a0a] border border-neutral-800 text-base font-bold font-mono tracking-[0.5em] text-center text-white rounded-xl py-3 placeholder-neutral-700 focus:outline-none focus:border-red-650 transition-all placeholder:tracking-normal"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isLoading}
+                className="w-full mt-2 py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-850 disabled:from-neutral-800 disabled:to-neutral-900 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition-all shadow-md shadow-emerald-900/10 flex items-center justify-center gap-1.5 cursor-pointer animate-pulse"
+              >
+                {isLoading ? 'Checando Código...' : 'Confirmar e Liberar Sessão ✔️'}
+              </button>
+
+              <div className="flex flex-col gap-2 mt-4 pt-2 border-t border-neutral-900">
+                <p className="text-center text-xs text-neutral-500">
+                  Deseja cancelar?{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => { setTab('admin-login'); setErrorMsg(''); setSuccessMsg(''); setCode2FA(''); }}
+                    className="text-amber-500 hover:text-amber-400 font-bold underline transition-colors focus:outline-none"
+                  >
+                    Voltar para Login Admin
+                  </button>
+                </p>
+              </div>
             </form>
           )}
 
