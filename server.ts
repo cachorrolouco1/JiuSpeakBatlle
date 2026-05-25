@@ -383,7 +383,11 @@ app.post('/api/auth/register', (req, res) => {
     });
 
   } catch (err: any) {
-    res.status(500).json({ error: 'Erro interno do servidor ao criar conta. Tente novamente.', details: err.message });
+    console.error(err);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message || 'Erro interno do servidor ao criar conta. Tente novamente.' 
+    });
   }
 });
 

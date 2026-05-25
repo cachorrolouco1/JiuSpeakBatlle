@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
-        return { success: false, message: data.error || 'Erro ao processar cadastro.' };
+        return { success: false, message: data.error || data.message || 'Erro ao processar cadastro.' };
       }
 
       localStorage.setItem('jiuspeak_auth_token', data.token);

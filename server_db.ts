@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { PrismaClient } from '@prisma/client';
 
 export interface UserRow {
   id: string;
@@ -529,8 +530,71 @@ class DatabaseManager {
     max_price: 10000
   };
 
+  private prisma: PrismaClient | null = null;
+  public isPrismaActive = false;
+
+  private async initPrisma() {
+    if (process.env.DATABASE_URL) {
+      try {
+        this.prisma = new PrismaClient({
+          datasources: {
+            db: {
+              url: process.env.DATABASE_URL
+            }
+          }
+        });
+        // Fast test query to verify PostgreSQL database connection
+        await this.prisma.$queryRaw`SELECT 1`;
+        this.isPrismaActive = true;
+        console.log("[JiuSpeak Database] ⚡ Conectado ao PostgreSQL com sucesso via Prisma ORM! 🥋");
+        
+        // Sync JSON users into PostgreSQL on first boot so no user registers/progress is lost!
+        await this.syncJsonToPrisma();
+      } catch (err: any) {
+        console.error(`[JiuSpeak Database] Falha ao conectar ao PostgreSQL: ${err.message}. caindo de volta para JSON local. 🔒`);
+        this.isPrismaActive = false;
+      }
+    } else {
+      console.log("[JiuSpeak Database] DATABASE_URL não declarada. Usando persistência por arquivo 'database.json'.");
+    }
+  }
+
+  private async syncJsonToPrisma() {
+    if (!this.prisma || !this.isPrismaActive) return;
+    try {
+      console.log("[JiuSpeak Database] Sincronizando usuários locais com o servidor PostgreSQL...");
+      for (const u of this.users) {
+        const exist = await this.prisma.user.findUnique({
+          where: { email: u.email }
+        });
+        if (!exist) {
+          await this.prisma.user.create({
+            data: {
+              id: u.id,
+              first_name: u.first_name,
+              last_name: u.last_name || "",
+              email: u.email,
+              phone: u.phone || "",
+              address: u.address || "",
+              password_hash: u.password_hash,
+              role: u.role || 'USER',
+              created_at: new Date(u.created_at)
+            }
+          });
+          console.log(`[JiuSpeak Sync] Usuário cadastrado sincronizado com sucesso: ${u.email}`);
+        }
+      }
+      console.log("[JiuSpeak Database] Sincronização concluída com sucesso!");
+    } catch (err: any) {
+      console.error("[JiuSpeak Database] Erro crítico ao sincronizar banco de dados JSON para PostgreSQL:", err.message);
+    }
+  }
+
   constructor() {
     this.load();
+    this.initPrisma().catch(err => {
+      console.error("[JiuSpeak Database] Error initializing prisma asynchronously:", err);
+    });
   }
 
   private load() {
@@ -1507,6 +1571,28 @@ class DatabaseManager {
     
     this.users.push(newUser);
     this.save();
+
+    // Persist to PostgreSQL if Prisma connection is active
+    if (this.isPrismaActive && this.prisma) {
+      this.prisma.user.create({
+        data: {
+          id: newUser.id,
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+          email: newUser.email,
+          phone: newUser.phone,
+          address: newUser.address,
+          password_hash: newUser.password_hash,
+          role: newUser.role || 'USER',
+          created_at: new Date(newUser.created_at)
+        }
+      }).then(() => {
+        console.log(`[Prisma Database] Sucesso ao persistir novo atleta no PostgreSQL: ${newUser.email}`);
+      }).catch(err => {
+        console.error(`[Prisma Database Error] Falha ao persistir usuário ${newUser.email} no PostgreSQL:`, err);
+      });
+    }
+
     return newUser;
   }
 
@@ -1521,6 +1607,30 @@ class DatabaseManager {
     };
     
     this.save();
+
+    // Update in PostgreSQL if Prisma connection is active
+    if (this.isPrismaActive && this.prisma) {
+      const updateData: any = {};
+      if (updates.first_name !== undefined) updateData.first_name = updates.first_name;
+      if (updates.last_name !== undefined) updateData.last_name = updates.last_name;
+      if (updates.email !== undefined) updateData.email = updates.email;
+      if (updates.phone !== undefined) updateData.phone = updates.phone;
+      if (updates.address !== undefined) updateData.address = updates.address;
+      if (updates.password_hash !== undefined) updateData.password_hash = updates.password_hash;
+      if (updates.role !== undefined) updateData.role = updates.role;
+
+      if (Object.keys(updateData).length > 0) {
+        this.prisma.user.update({
+          where: { id },
+          data: updateData
+        }).then(() => {
+          console.log(`[Prisma Database] Sucesso ao atualizar atleta no PostgreSQL: ${id}`);
+        }).catch(err => {
+          console.error(`[Prisma Database Error] Falha ao atualizar usuário ${id} no PostgreSQL:`, err);
+        });
+      }
+    }
+
     return this.users[idx];
   }
 
@@ -1529,6 +1639,18 @@ class DatabaseManager {
     if (idx === -1) return false;
     this.users.splice(idx, 1);
     this.save();
+
+    // Delete from PostgreSQL if Prisma connection is active
+    if (this.isPrismaActive && this.prisma) {
+      this.prisma.user.delete({
+        where: { id }
+      }).then(() => {
+        console.log(`[Prisma Database] Sucesso ao deletar atleta do PostgreSQL: ${id}`);
+      }).catch(err => {
+        console.error(`[Prisma Database Error] Falha ao excluir usuário ${id} no PostgreSQL:`, err);
+      });
+    }
+
     return true;
   }
 
