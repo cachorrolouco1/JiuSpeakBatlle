@@ -549,7 +549,7 @@ class DatabaseManager {
           let username_locked = u.username_locked;
           let is_verified = u.is_verified;
           
-          if (u.email === 'lucas.spider@jiuspeak.com' || u.id === 'u1') {
+          if (u.email === 'lucas.spider@jiuspeak.com' || u.id === 'u1' || u.email === 'maxtechptbr@gmail.com' || u.email === 'maxtechptbr9@gmail.com') {
             if (role !== 'ADMIN' || !is_admin) {
               role = 'ADMIN';
               is_admin = true;
