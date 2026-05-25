@@ -1,0 +1,6 @@
+{
+  "name": "JiuSpeak",
+  "description": "Aprenda inglês voltado ao Jiu-Jítsu Brasileiro com gamificação, IA de pronúncia, arena PvP e mais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
