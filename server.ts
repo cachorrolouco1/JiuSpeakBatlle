@@ -416,6 +416,17 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Credenciais inválidas. Verifique seu e-mail e senha inseridos.' });
   }
 
+  // SUSPENSION CHECK
+  if (user.verification_token === 'BLOCKED') {
+    dbStore.addSecurityLog(
+      `${user.first_name} ${user.last_name}`,
+      'Acesso Rejeitado',
+      clientIp,
+      'Tentativa de login em conta suspensa'
+    );
+    return res.status(403).json({ error: 'Sua conta foi suspensa temporariamente por administradores para verificação de segurança.' });
+  }
+
   // Verify encrypted hash password using bcrypt
   const validPass = bcrypt.compareSync(password, user.password_hash);
   if (!validPass) {
@@ -605,6 +616,19 @@ app.get('/api/users/me', authenticateJWT as any, (req: AuthenticatedRequest, res
       active_title: user.active_title || '',
       email_verified: user.email_verified,
       is_online: true,
+      role: user.role || 'USER',
+      is_admin: !!user.is_admin,
+      permissions: user.permissions || ['user'],
+      username: user.username,
+      username_locked: !!user.username_locked,
+      is_verified: !!user.is_verified,
+      last_profile_update: user.last_profile_update,
+      biography: user.biography || '',
+      social_instagram: user.social_instagram || '',
+      social_twitter: user.social_twitter || '',
+      language: user.language || 'pt',
+      theme_visual: user.theme_visual || 'dark',
+      privacy_profile: user.privacy_profile || 'public',
       created_at: user.created_at,
       updated_at: user.updated_at
     }
@@ -614,12 +638,38 @@ app.get('/api/users/me', authenticateJWT as any, (req: AuthenticatedRequest, res
 // 8. Edit Profile details including image upload Base64
 app.put('/api/users/profile', authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
-  const { first_name, last_name, phone, address, profile_image, belt_rank, xp, streak, active_frame, active_avatar_skin, active_belt_skin, active_title } = req.body;
+  const { 
+    first_name, 
+    last_name, 
+    username,
+    phone, 
+    address, 
+    profile_image, 
+    belt_rank, 
+    xp, 
+    streak, 
+    active_frame, 
+    active_avatar_skin, 
+    active_belt_skin, 
+    active_title,
+    biography,
+    social_instagram,
+    social_twitter,
+    language,
+    theme_visual,
+    privacy_profile,
+    password
+  } = req.body;
+
+  // STRICT REQUIREMENT: Protect Name, Surname and Username from alteration by general users
+  if ((first_name !== undefined && first_name !== user.first_name) ||
+      (last_name !== undefined && last_name !== user.last_name) ||
+      (username !== undefined && username !== user.username)) {
+    return res.status(400).json({ error: 'Seu nome não pode ser alterado após o cadastro.' });
+  }
 
   // Partial validation constraints
   const updates: Partial<UserRow> = {};
-  if (first_name !== undefined) updates.first_name = first_name;
-  if (last_name !== undefined) updates.last_name = last_name;
   if (phone !== undefined) {
     const telecomDigits = phone.replace(/\D/g, '');
     if (telecomDigits.length > 0 && telecomDigits.length < 10) {
@@ -640,6 +690,24 @@ app.put('/api/users/profile', authenticateJWT as any, (req: AuthenticatedRequest
   if (active_avatar_skin !== undefined) updates.active_avatar_skin = active_avatar_skin;
   if (active_belt_skin !== undefined) updates.active_belt_skin = active_belt_skin;
   if (active_title !== undefined) updates.active_title = active_title;
+
+  // Advanced profile customization update
+  if (biography !== undefined) updates.biography = biography;
+  if (social_instagram !== undefined) updates.social_instagram = social_instagram;
+  if (social_twitter !== undefined) updates.social_twitter = social_twitter;
+  if (language !== undefined) updates.language = language;
+  if (theme_visual !== undefined) updates.theme_visual = theme_visual;
+  if (privacy_profile !== undefined) updates.privacy_profile = privacy_profile;
+
+  // Passwords change validation and hash
+  if (password !== undefined && password !== '') {
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'A senha deve possuir pelo menos 6 caracteres.' });
+    }
+    updates.password_hash = bcrypt.hashSync(password, 10);
+  }
+
+  updates.last_profile_update = new Date().toISOString();
 
   try {
     const updatedUser = dbStore.updateUser(user.id, updates);
@@ -666,6 +734,19 @@ app.put('/api/users/profile', authenticateJWT as any, (req: AuthenticatedRequest
         active_belt_skin: updatedUser?.active_belt_skin || '',
         active_title: updatedUser?.active_title || '',
         email_verified: updatedUser?.email_verified,
+        role: updatedUser?.role || 'USER',
+        is_admin: !!updatedUser?.is_admin,
+        permissions: updatedUser?.permissions || ['user'],
+        username: updatedUser?.username,
+        username_locked: !!updatedUser?.username_locked,
+        is_verified: !!updatedUser?.is_verified,
+        last_profile_update: updatedUser?.last_profile_update,
+        biography: updatedUser?.biography || '',
+        social_instagram: updatedUser?.social_instagram || '',
+        social_twitter: updatedUser?.social_twitter || '',
+        language: updatedUser?.language || 'pt',
+        theme_visual: updatedUser?.theme_visual || 'dark',
+        privacy_profile: updatedUser?.privacy_profile || 'public',
         is_online: true,
         created_at: updatedUser?.created_at,
         updated_at: updatedUser?.updated_at
@@ -1386,7 +1467,11 @@ app.get('/api/social/user/:identifier', (req, res) => {
   // Match check
   let found = allUsers.find(u => u.id === ident);
   if (!found) {
-    // Try slug compare (first_name + last_name lowercased without space)
+    // Try exact or case-insensitive username comparison
+    found = allUsers.find(u => u.username?.toLowerCase() === ident.toLowerCase());
+  }
+  if (!found) {
+    // Try old slug fallback comparison
     found = allUsers.find(u => {
       const slug = `${u.first_name}${u.last_name}`.toLowerCase().replace(/[^a-z0-9]/g, '');
       return slug === ident.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1412,12 +1497,20 @@ app.get('/api/social/user/:identifier', (req, res) => {
       id: found.id,
       first_name: found.first_name,
       last_name: found.last_name,
-      username: `${found.first_name.toLowerCase()}${found.last_name.toLowerCase()}`.replace(/[^a-z0-9]/g, ''),
+      username: found.username || `${found.first_name.toLowerCase()}${found.last_name.toLowerCase()}`.replace(/[^a-z0-9]/g, ''),
       email: found.id.startsWith('u') ? found.email : 'protegido@jiuspeak.com',
       profile_image: found.profile_image,
       belt_rank: found.belt_rank,
       xp: found.xp,
       streak: found.streak,
+      biography: found.biography || '',
+      social_instagram: found.social_instagram || '',
+      social_twitter: found.social_twitter || '',
+      language: found.language || 'pt',
+      theme_visual: found.theme_visual || 'dark',
+      privacy_profile: found.privacy_profile || 'public',
+      role: found.role || 'USER',
+      is_verified: !!found.is_verified,
       created_at: found.created_at
     },
     stats: {
@@ -1730,6 +1823,199 @@ app.post('/api/pricing/marketplace/update', authenticateJWT as any, authorizeAdm
     res.json({ success: true, config: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Erro ao salvar regras de comissão e taxas.', details: err.message });
+  }
+});
+
+
+// --- SECTION: RBAC & ADMINISTRATIVE ACTIONS ---
+
+// Get all users in system with complete fields (Only Admin)
+app.get('/api/admin/users', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const list = dbStore.getUsers().map(u => ({
+      id: u.id,
+      first_name: u.first_name,
+      last_name: u.last_name,
+      email: u.email,
+      phone: u.phone,
+      address: u.address,
+      username: u.username,
+      belt_rank: u.belt_rank,
+      xp: u.xp,
+      streak: u.streak,
+      role: u.role || 'USER',
+      is_admin: !!u.is_admin,
+      is_verified: !!u.is_verified,
+      is_locked: !!u.username_locked,
+      is_blocked: u.verification_token === 'BLOCKED',
+      last_profile_update: u.last_profile_update,
+      created_at: u.created_at
+    }));
+    res.json({ success: true, users: list });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao listar guerreiros.', details: err.message });
+  }
+});
+
+// Update user role (promote to Moderator/Admin, demote) (Only Admin)
+app.put('/api/admin/users/:id/role', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const targetId = req.params.id;
+    const { role } = req.body;
+    const admin = req.user!;
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+
+    if (!['USER', 'MODERATOR', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ success: false, error: 'Cargo (Role) inválido.' });
+    }
+
+    const targetUser = dbStore.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Guerreiro não localizado.' });
+    }
+
+    // Update role parameters
+    const updates: Partial<UserRow> = {
+      role,
+      is_admin: role === 'ADMIN',
+      permissions: role === 'ADMIN' ? ['all'] : (role === 'MODERATOR' ? ['moderate'] : ['user']),
+    };
+
+    dbStore.updateUser(targetId, updates);
+
+    // LOG ACTION
+    dbStore.addAdminActionLog(
+      admin.id,
+      `${admin.first_name} ${admin.last_name}`,
+      `Alteração de Cargo para ${role}`,
+      targetUser.email,
+      clientIp
+    );
+
+    res.json({ success: true, message: `Cargo do usuário alterado para ${role} com sucesso!` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao alterar cargo do guerreiro.', details: err.message });
+  }
+});
+
+// Block/Unblock user account (Only Admin)
+app.put('/api/admin/users/:id/status', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const targetId = req.params.id;
+    const { block } = req.body; // boolean value
+    const admin = req.user!;
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+
+    const targetUser = dbStore.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Guerreiro não localizado.' });
+    }
+
+    const updates: Partial<UserRow> = {
+      verification_token: block ? 'BLOCKED' : ''
+    };
+    dbStore.updateUser(targetId, updates);
+
+    dbStore.addAdminActionLog(
+      admin.id,
+      `${admin.first_name} ${admin.last_name}`,
+      block ? 'Bloqueio de Conta' : 'Desbloqueio de Conta',
+      targetUser.email,
+      clientIp
+    );
+
+    res.json({ success: true, message: block ? 'Guerreiro bloqueado militarmente com sucesso!' : 'Guerreiro desbloqueado com sucesso!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao atualizar status da conta.', details: err.message });
+  }
+});
+
+// Force administrative password reset (Only Admin)
+app.put('/api/admin/users/:id/password', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const targetId = req.params.id;
+    const { password } = req.body;
+    const admin = req.user!;
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'A nova senha deve possuir pelo menos 6 caracteres.' });
+    }
+
+    const targetUser = dbStore.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Guerreiro não localizado.' });
+    }
+
+    const password_hash = bcrypt.hashSync(password, 10);
+    dbStore.updateUser(targetId, { password_hash });
+
+    dbStore.addAdminActionLog(
+      admin.id,
+      `${admin.first_name} ${admin.last_name}`,
+      'Redefinição Administrativa de Senha',
+      targetUser.email,
+      clientIp
+    );
+
+    res.json({ success: true, message: 'Senha redefinida com autoridade pelo administrador!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao redefinir senha do guerreiro.', details: err.message });
+  }
+});
+
+// Force administrative profile corrections (change names or username) (Only Admin)
+app.put('/api/admin/users/:id/profile', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const targetId = req.params.id;
+    const { first_name, last_name, username } = req.body;
+    const admin = req.user!;
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+
+    const targetUser = dbStore.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Guerreiro não localizado.' });
+    }
+
+    const updates: Partial<UserRow> = {};
+    if (first_name !== undefined) updates.first_name = first_name;
+    if (last_name !== undefined) updates.last_name = last_name;
+    if (username !== undefined) {
+      const cleanedUsername = username.toLowerCase().replace(/[^a-z0-9.]/g, '');
+      if (!cleanedUsername) {
+        return res.status(400).json({ success: false, error: 'Formato de username inválido.' });
+      }
+      const collision = dbStore.getUsers().find(u => u.id !== targetId && u.username?.toLowerCase() === cleanedUsername);
+      if (collision) {
+        return res.status(400).json({ success: false, error: 'Este username único já está em uso.' });
+      }
+      updates.username = cleanedUsername;
+    }
+
+    dbStore.updateUser(targetId, updates);
+
+    // LOG
+    const correctedString = `Correção Cadastral: ${first_name || targetUser.first_name} ${last_name || targetUser.last_name} (@${username || targetUser.username})`;
+    dbStore.addAdminActionLog(
+      admin.id,
+      `${admin.first_name} ${admin.last_name}`,
+      correctedString,
+      targetUser.email,
+      clientIp
+    );
+
+    res.json({ success: true, message: 'Correções cadastrais aplicadas com sucesso!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao aplicar correções cadastrais.', details: err.message });
+  }
+});
+
+// List audit action logs (Only Admin)
+app.get('/api/admin/logs', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    res.json({ success: true, logs: dbStore.getAdminActionLogs() });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao carregar registros de auditoria.', details: err.message });
   }
 });
 

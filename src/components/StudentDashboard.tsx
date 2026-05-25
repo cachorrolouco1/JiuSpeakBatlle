@@ -279,6 +279,14 @@ export default function StudentDashboard({
   const [editPhone, setEditPhone] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editProfileImage, setEditProfileImage] = useState('');
+  const [editBiography, setEditBiography] = useState('');
+  const [editInstagram, setEditInstagram] = useState('');
+  const [editTwitter, setEditTwitter] = useState('');
+  const [editLanguage, setEditLanguage] = useState('pt');
+  const [editTheme, setEditTheme] = useState('dark');
+  const [editPrivacy, setEditPrivacy] = useState('public');
+  const [editPassword, setEditPassword] = useState('');
+  const [editUsername, setEditUsername] = useState('');
   const [editStatusMsg, setEditStatusMsg] = useState('');
   const [editErrorMsg, setEditErrorMsg] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -293,6 +301,14 @@ export default function StudentDashboard({
       setEditPhone(user.phone || '');
       setEditAddress(user.address || '');
       setEditProfileImage(user.profile_image || '');
+      setEditBiography(user.biography || '');
+      setEditInstagram(user.social_instagram || '');
+      setEditTwitter(user.social_twitter || '');
+      setEditLanguage(user.language || 'pt');
+      setEditTheme(user.theme_visual || 'dark');
+      setEditPrivacy(user.privacy_profile || 'public');
+      setEditUsername(user.username || '');
+      setEditPassword('');
     }
   }, [user]);
 
@@ -1628,23 +1644,29 @@ export default function StudentDashboard({
                         setEditStatusMsg('');
                         setEditErrorMsg('');
 
-                        if (!editFirstName || !editLastName || !editPhone || !editAddress) {
-                          setEditErrorMsg('Preencha os campos obrigatórios.');
+                        if (!editPhone || !editAddress) {
+                          setEditErrorMsg('Preencha os campos obrigatórios (Telefone e Endereço).');
                           setIsSavingProfile(false);
                           return;
                         }
 
                         const result = await updateUserProfile({
-                          first_name: editFirstName,
-                          last_name: editLastName,
                           phone: editPhone,
                           address: editAddress,
-                          profile_image: editProfileImage
+                          profile_image: editProfileImage,
+                          biography: editBiography,
+                          social_instagram: editInstagram,
+                          social_twitter: editTwitter,
+                          language: editLanguage,
+                          theme_visual: editTheme,
+                          privacy_profile: editPrivacy as 'public' | 'private',
+                          password: editPassword
                         });
 
                         setIsSavingProfile(false);
                         if (result.success) {
-                          setEditStatusMsg('Perfil atualizado e salvo no banco de dados com sucesso! 🥋');
+                          setEditStatusMsg('Perfil atualizado com sucesso no JiuSpeak! 🥋');
+                          setEditPassword('');
                           setTimeout(() => setEditStatusMsg(''), 4000);
                         } else {
                           setEditErrorMsg(result.message);
@@ -1652,60 +1674,168 @@ export default function StudentDashboard({
                       }}
                       className="space-y-4 text-left"
                     >
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* Restricted Name Area */}
+                      <div className="bg-neutral-900/60 border border-neutral-850 rounded-xl p-4 space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <Lock className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="text-[10px] font-mono text-neutral-400 font-bold block uppercase tracking-wider">🔒 Identidade Travada</span>
+                            <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                              Seu nome, sobrenome e username único não podem ser alterados após o cadastro por motivos de autenticidade no ranking global e emissão de certificados oficiais.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                          <div>
+                            <label className="text-[9px] font-mono uppercase tracking-wider text-neutral-400 font-bold block mb-1">Primeiro Nome</label>
+                            <input 
+                              type="text"
+                              disabled
+                              value={editFirstName}
+                              className="w-full bg-[#141414] border border-neutral-850 text-xs text-neutral-500 rounded-lg px-3 py-2 cursor-not-allowed font-sans select-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-mono uppercase tracking-wider text-neutral-400 font-bold block mb-1">Sobrenome</label>
+                            <input 
+                              type="text"
+                              disabled
+                              value={editLastName}
+                              className="w-full bg-[#141414] border border-neutral-850 text-xs text-neutral-500 rounded-lg px-3 py-2 cursor-not-allowed font-sans select-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-mono uppercase tracking-wider text-neutral-400 font-bold block mb-1">Username Único</label>
+                            <input 
+                              type="text"
+                              disabled
+                              value={editUsername ? `@${editUsername}` : ''}
+                              className="w-full bg-[#141414] border border-neutral-850/80 text-xs text-neutral-500 rounded-lg px-3 py-2 cursor-not-allowed font-mono select-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Primeiro Nome *</label>
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Telefone de Contato *</label>
                           <input 
                             type="text"
                             required
-                            value={editFirstName}
-                            onChange={(e) => setEditFirstName(e.target.value)}
-                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans"
+                            value={editPhone}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              if (val.length > 11) val = val.slice(0, 11);
+                              if (val.length > 6) {
+                                val = `(${val.slice(0, 2)}) ${val.slice(2, 7)}-${val.slice(7)}`;
+                              } else if (val.length > 2) {
+                                val = `(${val.slice(0, 2)}) ${val.slice(2)}`;
+                              } else if (val.length > 0) {
+                                val = `(${val}`;
+                              }
+                              setEditPhone(val);
+                            }}
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-mono"
                           />
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Sobrenome *</label>
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Endereço de Correspondência *</label>
                           <input 
                             type="text"
                             required
-                            value={editLastName}
-                            onChange={(e) => setEditLastName(e.target.value)}
+                            value={editAddress}
+                            onChange={(e) => setEditAddress(e.target.value)}
                             className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Telefone de Contato *</label>
-                        <input 
-                          type="text"
-                          required
-                          value={editPhone}
-                          onChange={(e) => {
-                            let val = e.target.value.replace(/\D/g, '');
-                            if (val.length > 11) val = val.slice(0, 11);
-                            if (val.length > 6) {
-                              val = `(${val.slice(0, 2)}) ${val.slice(2, 7)}-${val.slice(7)}`;
-                            } else if (val.length > 2) {
-                              val = `(${val.slice(0, 2)}) ${val.slice(2)}`;
-                            } else if (val.length > 0) {
-                              val = `(${val}`;
-                            }
-                            setEditPhone(val);
-                          }}
-                          className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-mono"
+                        <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Biografia / Sobre Você</label>
+                        <textarea 
+                          rows={3}
+                          value={editBiography}
+                          onChange={(e) => setEditBiography(e.target.value)}
+                          placeholder="Fale um pouco sobre sua caminhada no Jiu-Jitsu brasileiro..."
+                          className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans resize-none"
                         />
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Instagram (@)</label>
+                          <input 
+                            type="text"
+                            value={editInstagram}
+                            onChange={(e) => setEditInstagram(e.target.value)}
+                            placeholder="bjj_athlete"
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Twitter / X (@)</label>
+                          <input 
+                            type="text"
+                            value={editTwitter}
+                            onChange={(e) => setEditTwitter(e.target.value)}
+                            placeholder="bjj_warrior"
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Idioma de Preferência</label>
+                          <select 
+                            value={editLanguage}
+                            onChange={(e) => setEditLanguage(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-red-650 transition-all"
+                          >
+                            <option value="pt">Português (Brasil)</option>
+                            <option value="en">English (US)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Tema Visual</label>
+                          <select 
+                            value={editTheme}
+                            onChange={(e) => setEditTheme(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-red-650 transition-all"
+                          >
+                            <option value="dark">Carbono Premium (Escuro)</option>
+                            <option value="light">Kimono Alvo (Claro)</option>
+                            <option value="cosmic">Nebulosa Cosmic (Roxo)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Privacidade de Perfil</label>
+                          <select 
+                            value={editPrivacy}
+                            onChange={(e) => setEditPrivacy(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-red-650 transition-all"
+                          >
+                            <option value="public">Público (Visível no Ranking)</option>
+                            <option value="private">Privado (Invisível)</option>
+                          </select>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">Endereço de Correspondência Requerido *</label>
+                        <label className="text-[10px] font-mono uppercase tracking-wider text-amber-500 font-bold block">Nova Senha de Acesso (Deixe em branco para manter a atual)</label>
                         <input 
-                          type="text"
-                          required
-                          value={editAddress}
-                          onChange={(e) => setEditAddress(e.target.value)}
-                          className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-650 transition-all font-sans"
+                          type="password"
+                          placeholder="Substituir senha de acesso atual..."
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          className="w-full bg-[#0a0a0a] border border-neutral-850 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition-all font-mono"
                         />
                       </div>
 

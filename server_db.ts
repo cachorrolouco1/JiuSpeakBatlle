@@ -31,6 +31,16 @@ export interface UserRow {
   permissions?: string[];
   last_login?: string;
   is_admin?: boolean;
+  username?: string;
+  username_locked?: boolean;
+  is_verified?: boolean;
+  last_profile_update?: string;
+  biography?: string;
+  social_instagram?: string;
+  social_twitter?: string;
+  language?: string;
+  theme_visual?: string;
+  privacy_profile?: 'public' | 'private';
   created_at: string;
   updated_at: string;
 }
@@ -242,6 +252,16 @@ export interface AdminSecurityLog {
   created_at: string;
 }
 
+export interface AdminActionLog {
+  id: string;
+  admin_id: string;
+  admin_name: string;
+  action: string;
+  target_user: string; // e.g. email or name or ID of the user affected
+  ip_address: string;
+  created_at: string;
+}
+
 export interface AdminPayoutRequest {
   id: string;
   amount: number; // in cents of USD
@@ -313,6 +333,7 @@ const TRANSACTIONS_FILE = path.join(process.cwd(), 'transactions.json');
 const SUBSCRIPTIONS_FILE = path.join(process.cwd(), 'subscriptions.json');
 const STORE_SALES_FILE = path.join(process.cwd(), 'store_sales.json');
 const ADMIN_SECURITY_LOGS_FILE = path.join(process.cwd(), 'admin_security_logs.json');
+const ADMIN_ACTION_LOGS_FILE = path.join(process.cwd(), 'admin_action_logs.json');
 const ADMIN_PAYOUTS_FILE = path.join(process.cwd(), 'admin_payouts.json');
 const PAYMENTS_FILE = path.join(process.cwd(), 'payments.json');
 const PIX_PAYMENTS_FILE = path.join(process.cwd(), 'pix_payments.json');
@@ -488,6 +509,7 @@ class DatabaseManager {
   private subscriptions: SubscriptionRow[] = [];
   private storeSales: StoreSaleRow[] = [];
   private adminSecurityLogs: AdminSecurityLog[] = [];
+  private adminActionLogs: AdminActionLog[] = [];
   private adminPayouts: AdminPayoutRequest[] = [];
   
   // Real BRL Payment Table Collections
@@ -523,6 +545,9 @@ class DatabaseManager {
           let role = u.role;
           let is_admin = u.is_admin;
           let permissions = u.permissions;
+          let username = u.username;
+          let username_locked = u.username_locked;
+          let is_verified = u.is_verified;
           
           if (u.email === 'lucas.spider@jiuspeak.com' || u.id === 'u1') {
             if (role !== 'ADMIN' || !is_admin) {
@@ -546,10 +571,48 @@ class DatabaseManager {
               hasChange = true;
             }
           }
+
+          if (!username) {
+            const cleanParts = (u.first_name + (u.last_name ? '.' + u.last_name : ''))
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "") // remove diacritics
+              .replace(/[^a-z0-9.]/g, '')
+              .replace(/\.+/g, '.');
+            let tempUsername = cleanParts || u.email.split('@')[0];
+            
+            // Check uniqueness in the already populated parts
+            let suffix = 1;
+            let checkName = tempUsername;
+            while (this.users.some(item => item.id !== u.id && item.username === checkName)) {
+              checkName = tempUsername + suffix;
+              suffix++;
+            }
+            username = checkName;
+            hasChange = true;
+          }
+
+          if (username_locked === undefined) {
+            username_locked = true;
+            hasChange = true;
+          }
+
+          if (is_verified === undefined) {
+            is_verified = u.email_verified || false;
+            hasChange = true;
+          }
           
           if (hasChange) {
             updated = true;
-            return { ...u, role, is_admin, permissions };
+            return { 
+              ...u, 
+              role, 
+              is_admin, 
+              permissions, 
+              username, 
+              username_locked, 
+              is_verified 
+            };
           }
           return u;
         });
@@ -1012,6 +1075,28 @@ class DatabaseManager {
     }
 
     try {
+      if (fs.existsSync(ADMIN_ACTION_LOGS_FILE)) {
+        this.adminActionLogs = JSON.parse(fs.readFileSync(ADMIN_ACTION_LOGS_FILE, 'utf8'));
+      } else {
+        const baseTime = Date.now();
+        this.adminActionLogs = [
+          {
+            id: 'actlog_1',
+            admin_id: 'u1',
+            admin_name: 'Lucas Silva',
+            action: 'Promover para Moderador',
+            target_user: 'marcus.miller@jiuspeak.com',
+            ip_address: '187.12.34.56',
+            created_at: new Date(baseTime - 3600000 * 24 * 2).toISOString()
+          }
+        ];
+        this.saveAdminActionLogs();
+      }
+    } catch (e) {
+      this.adminActionLogs = [];
+    }
+
+    try {
       if (fs.existsSync(ADMIN_PAYOUTS_FILE)) {
         this.adminPayouts = JSON.parse(fs.readFileSync(ADMIN_PAYOUTS_FILE, 'utf8'));
       } else {
@@ -1375,6 +1460,10 @@ class DatabaseManager {
     return this.users.find(u => u.id === id);
   }
 
+  public getUserByUsername(username: string): UserRow | undefined {
+    return this.users.find(u => u.username?.toLowerCase() === username.toLowerCase());
+  }
+
   public getUserByVerificationToken(token: string): UserRow | undefined {
     return this.users.find(u => u.verification_token === token);
   }
@@ -1384,9 +1473,26 @@ class DatabaseManager {
   }
 
   public createUser(userData: Omit<UserRow, 'id' | 'created_at' | 'updated_at' | 'xp' | 'streak' | 'belt_rank' | 'is_online' | 'email_verified'>): UserRow {
+    const rawName = (userData.first_name + (userData.last_name ? '.' + userData.last_name : ''))
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove diacritics
+      .replace(/[^a-z0-9.]/g, '')
+      .replace(/\.+/g, '.');
+    let baseUsername = rawName || userData.email.split('@')[0];
+    let tempUsername = baseUsername;
+    let suffix = 1;
+    while (this.users.some(u => u.username === tempUsername)) {
+      tempUsername = baseUsername + suffix;
+      suffix++;
+    }
+
     const newUser: UserRow = {
       ...userData,
       id: 'usr_' + Math.random().toString(36).substr(2, 9),
+      username: tempUsername,
+      username_locked: true,
+      is_verified: false,
       belt_rank: 'White',
       xp: 0,
       streak: 1,
@@ -2628,6 +2734,34 @@ class DatabaseManager {
     return this.adminSecurityLogs;
   }
 
+  public getAdminActionLogs() {
+    return this.adminActionLogs;
+  }
+
+  public addAdminActionLog(adminId: string, adminName: string, action: string, targetUser: string, ip: string) {
+    const newLog: AdminActionLog = {
+      id: 'actlog_' + Math.random().toString(36).substr(2, 9),
+      admin_id: adminId,
+      admin_name: adminName,
+      action,
+      target_user: targetUser,
+      ip_address: ip,
+      created_at: new Date().toISOString()
+    };
+    this.adminActionLogs.unshift(newLog);
+    this.saveAdminActionLogs();
+    
+    // Also log to general security logs for comprehensive audit coverage
+    this.addSecurityLog(
+      adminName,
+      `Ação Admin: ${action}`,
+      ip,
+      `Efetuado pelo admin ID ${adminId} sobre o usuário: ${targetUser}`
+    );
+    
+    return newLog;
+  }
+
   public addSecurityLog(adminName: string, action: string, ip: string, details: string) {
     const newLog: AdminSecurityLog = {
       id: 'log_' + Math.random().toString(36).substr(2, 9),
@@ -2707,6 +2841,14 @@ class DatabaseManager {
       fs.writeFileSync(ADMIN_SECURITY_LOGS_FILE, JSON.stringify(this.adminSecurityLogs, null, 2), 'utf8');
     } catch (e) {
       console.error("Failed to write security logs file", e);
+    }
+  }
+
+  public saveAdminActionLogs() {
+    try {
+      fs.writeFileSync(ADMIN_ACTION_LOGS_FILE, JSON.stringify(this.adminActionLogs, null, 2), 'utf8');
+    } catch (e) {
+      console.error("Failed to write admin action logs file", e);
     }
   }
 

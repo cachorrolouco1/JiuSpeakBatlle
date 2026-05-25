@@ -134,9 +134,23 @@ export default function FinanceAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // RBAC User Management & Action Logs Audit
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminActionLogs, setAdminActionLogs] = useState<any[]>([]);
+  const [selectedAdminUser, setSelectedAdminUser] = useState<any | null>(null);
+  const [isSavingRBAC, setIsSavingRBAC] = useState(false);
+  const [rbacForm, setRbacForm] = useState({
+    first_name: '',
+    last_name: '',
+    username: '',
+    role: 'USER',
+    is_blocked: false,
+    new_password: ''
+  });
   
   // Active inner menu tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'pricing' | 'bank' | 'security' | 'simulator'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'pricing' | 'bank' | 'security' | 'simulator' | 'rbac_users'>('overview');
 
   // Dynamic Pricing Types and States
   const [storePricing, setStorePricing] = useState<any[]>([]);
@@ -453,10 +467,44 @@ export default function FinanceAdminDashboard() {
     }
   };
 
+  const loadAdminUsers = async () => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAdminUsers(data.users || []);
+      }
+    } catch (err: any) {
+      console.error("Erro ao carregar guerreiros administrativos:", err);
+    }
+  };
+
+  const loadAdminActionLogs = async () => {
+    try {
+      const response = await fetch('/api/admin/logs', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAdminActionLogs(data.logs || []);
+      }
+    } catch (err: any) {
+      console.error("Erro ao carregar logs de auditoria:", err);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       loadStats();
       loadPricing();
+      loadAdminUsers();
+      loadAdminActionLogs();
     }
   }, [token]);
 
@@ -931,6 +979,18 @@ export default function FinanceAdminDashboard() {
         >
           <Shield className="w-3.5 h-3.5" />
           Auditoria & Logs 2FA
+        </button>
+
+        <button
+          onClick={() => setActiveTab('rbac_users')}
+          className={`py-2 px-4 rounded-xl font-mono text-xs font-bold transition duration-200 flex items-center gap-1.5 ${
+            activeTab === 'rbac_users'
+              ? 'bg-neutral-900 text-white border-b-2 border-red-500 shadow'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/50'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5" />
+          Controle de Acesso & RBAC
         </button>
 
         <button
@@ -2556,6 +2616,334 @@ export default function FinanceAdminDashboard() {
                 </div>
               </div>
 
+            </div>
+
+          </div>
+        )}
+
+        {/* 6. RBAC CONTROLS & AUDIT ACTIONS LOGS */}
+        {activeTab === 'rbac_users' && (
+          <div className="space-y-6">
+            
+            <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-5">
+              <div className="border-b border-neutral-900 pb-3 mb-4">
+                <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Shield className="w-4 h-4 text-red-500" />
+                  Gerenciamento de Controle de Acesso (RBAC) & Correção de Cadastros
+                </h3>
+                <p className="text-neutral-400 text-xs text-left">
+                  Administre privilégios, altere permissões de sistema, suspenda contas de atletas temporariamente por suspeita de fraude e corrija erros cadastrais de nome, sobrenome ou username único com total histórico de auditoria.
+                </p>
+              </div>
+
+              {errorMessage && (
+                <div className="bg-red-950/40 border border-red-900/50 rounded-xl p-3 text-xs text-red-400 mb-4 text-left">
+                  {errorMessage}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="bg-green-950/40 border border-green-900/50 rounded-xl p-3 text-xs text-green-400 mb-4 text-left">
+                  {successMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Users List Area */}
+                <div className="lg:col-span-2 space-y-3">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase font-bold block text-left">
+                    Guerreiros Registrados na Base ({adminUsers.length})
+                  </span>
+
+                  <div className="overflow-x-auto rounded-xl border border-neutral-900 bg-[#030303]/40">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#030303] text-stone-500 border-b border-neutral-900 text-[10px] font-mono uppercase">
+                          <th className="p-3">Atleta ID</th>
+                          <th className="p-3">Nome / Usuário</th>
+                          <th className="p-3">E-mail</th>
+                          <th className="p-3">Cargo (Role)</th>
+                          <th className="p-3">Estado</th>
+                          <th className="p-3 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-900 font-mono">
+                        {adminUsers.map((u) => {
+                          const isSel = selectedAdminUser?.id === u.id;
+                          return (
+                            <tr key={u.id} className={`hover:bg-neutral-900/40 transition-colors ${isSel ? 'bg-red-950/20 text-white' : 'text-neutral-300'}`}>
+                              <td className="p-3 text-neutral-500 text-[10px]">{u.id}</td>
+                              <td className="p-3">
+                                <div className="font-sans font-bold text-white text-xs">{u.first_name} {u.last_name}</div>
+                                <div className="text-[10px] text-neutral-400 text-left">@{u.username || 'sem_username'}</div>
+                              </td>
+                              <td className="p-3 text-neutral-400 font-sans">{u.email}</td>
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                  u.role === 'ADMIN' 
+                                    ? 'bg-red-950 text-red-400 border border-red-900/50' 
+                                    : (u.role === 'MODERATOR' 
+                                      ? 'bg-amber-950 text-amber-400 border border-amber-900/50' 
+                                      : 'bg-neutral-900 text-stone-400')
+                                }`}>
+                                  {u.role || 'USER'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                {u.is_blocked ? (
+                                  <span className="text-red-500 font-bold block text-[10px] uppercase">● SUSPENSO</span>
+                                ) : (
+                                  <span className="text-green-500 block text-[10px] uppercase">● ATIVO</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                <button
+                                  onClick={() => {
+                                    setSelectedAdminUser(u);
+                                    setRbacForm({
+                                      first_name: u.first_name || '',
+                                      last_name: u.last_name || '',
+                                      username: u.username || '',
+                                      role: u.role || 'USER',
+                                      is_blocked: !!u.is_blocked,
+                                      new_password: ''
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-stone-300 hover:text-white rounded-lg text-[10px] transition font-sans cursor-pointer whitespace-nowrap"
+                                >
+                                  Gerenciar
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Editor/Modifier Form Area */}
+                <div className="bg-[#030303]/50 border border-neutral-900/80 rounded-2xl p-5 space-y-4 text-left">
+                  {selectedAdminUser ? (
+                    <div className="space-y-4">
+                      <div>
+                        <span className="text-[9px] font-mono text-neutral-500 uppercase block font-bold text-left">MUTATION OPERATOR</span>
+                        <h4 className="font-bold text-white text-sm text-left">Guerreiro: {selectedAdminUser.first_name}</h4>
+                        <div className="text-[10px] text-neutral-400 font-mono mt-0.5 text-left">ID: {selectedAdminUser.id} | Email: {selectedAdminUser.email}</div>
+                      </div>
+
+                      <div className="border-t border-neutral-900 pt-3 space-y-3">
+                        
+                        {/* Define roles */}
+                        <div>
+                          <label className="block text-[10px] font-mono text-neutral-400 uppercase font-bold mb-1 text-left">Cargo (Role - RBAC)</label>
+                          <select
+                            value={rbacForm.role}
+                            onChange={(e) => setRbacForm(prev => ({ ...prev, role: e.target.value }))}
+                            className="w-full bg-[#030303] border border-neutral-800 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-[#ff3b30]"
+                          >
+                            <option value="USER">USER (Acesso Comum)</option>
+                            <option value="MODERATOR">MODERATOR (Moderação de Conteúdo)</option>
+                            <option value="ADMIN">ADMIN (Acesso Total / Financeiro)</option>
+                          </select>
+                        </div>
+
+                        {/* Suspension control */}
+                        <div>
+                          <label className="block text-[10px] font-mono text-neutral-400 uppercase font-bold mb-1 text-left">Suspensão de Conta</label>
+                          <select
+                            value={rbacForm.is_blocked ? "BLOCKED" : "ACTIVE"}
+                            onChange={(e) => setRbacForm(prev => ({ ...prev, is_blocked: e.target.value === "BLOCKED" }))}
+                            className="w-full bg-[#030303] border border-neutral-800 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none"
+                          >
+                            <option value="ACTIVE">ACTIVE (Acesso normalizado)</option>
+                            <option value="BLOCKED">BLOCKED (Login suspenso temporariamente)</option>
+                          </select>
+                        </div>
+
+                        {/* Core Cadastre Correction inputs */}
+                        <div className="border-t border-neutral-900 pt-3 space-y-2">
+                          <span className="text-[9px] font-mono text-amber-500 block uppercase font-bold text-left">Correções de Cadastro Críticas</span>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <input
+                                type="text"
+                                value={rbacForm.first_name}
+                                onChange={(e) => setRbacForm(prev => ({ ...prev, first_name: e.target.value }))}
+                                placeholder="Primeiro Nome"
+                                className="w-full bg-[#030303] border border-neutral-850 rounded-lg py-2 px-3 text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={rbacForm.last_name}
+                                onChange={(e) => setRbacForm(prev => ({ ...prev, last_name: e.target.value }))}
+                                placeholder="Sobrenome"
+                                className="w-full bg-[#030303] border border-neutral-850 rounded-lg py-2 px-3 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              value={rbacForm.username}
+                              onChange={(e) => setRbacForm(prev => ({ ...prev, username: e.target.value }))}
+                              placeholder="Username (sem @)"
+                              className="w-full bg-[#030303] border border-neutral-850 rounded-lg py-2 px-3 text-xs text-white font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Direct Password reset */}
+                        <div className="border-t border-[#ff2a1a]/10 pt-3">
+                          <input
+                            type="password"
+                            placeholder="Forçar nova senha administrativa..."
+                            value={rbacForm.new_password}
+                            onChange={(e) => setRbacForm(prev => ({ ...prev, new_password: e.target.value }))}
+                            className="w-full bg-[#030303] border border-neutral-850 rounded-lg py-2 px-3 text-xs text-white placeholder-neutral-700 font-mono"
+                          />
+                        </div>
+
+                        {/* Save Mutation triggers */}
+                        <div className="pt-2">
+                          <button
+                            onClick={async () => {
+                              setIsSavingRBAC(true);
+                              setErrorMessage('');
+                              setSuccessMessage('');
+                              try {
+                                const headers = {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                };
+
+                                // 1. Update role if mutated
+                                if (rbacForm.role !== selectedAdminUser.role) {
+                                  const r1 = await fetch(`/api/admin/users/${selectedAdminUser.id}/role`, {
+                                    method: 'PUT',
+                                    headers,
+                                    body: JSON.stringify({ role: rbacForm.role })
+                                  });
+                                  const d1 = await r1.json();
+                                  if (!r1.ok) throw new Error(d1.error || 'Erro ao alterar cargo.');
+                                }
+
+                                // 2. Update status click if mutated
+                                if (rbacForm.is_blocked !== selectedAdminUser.is_blocked) {
+                                  const r2 = await fetch(`/api/admin/users/${selectedAdminUser.id}/status`, {
+                                    method: 'PUT',
+                                    headers,
+                                    body: JSON.stringify({ block: rbacForm.is_blocked })
+                                  });
+                                  const d2 = await r2.json();
+                                  if (!r2.ok) throw new Error(d2.error || 'Erro ao redefinir status da conta.');
+                                }
+
+                                // 3. Core corrections if mutated
+                                if (rbacForm.first_name !== selectedAdminUser.first_name ||
+                                    rbacForm.last_name !== selectedAdminUser.last_name ||
+                                    rbacForm.username !== selectedAdminUser.username) {
+                                  const r3 = await fetch(`/api/admin/users/${selectedAdminUser.id}/profile`, {
+                                    method: 'PUT',
+                                    headers,
+                                    body: JSON.stringify({
+                                      first_name: rbacForm.first_name,
+                                      last_name: rbacForm.last_name,
+                                      username: rbacForm.username
+                                    })
+                                  });
+                                  const d3 = await r3.json();
+                                  if (!r3.ok) throw new Error(d3.error || 'Erro ao aplicar correções cadastrais.');
+                                }
+
+                                // 4. Password update if provided
+                                if (rbacForm.new_password) {
+                                  const r4 = await fetch(`/api/admin/users/${selectedAdminUser.id}/password`, {
+                                    method: 'PUT',
+                                    headers,
+                                    body: JSON.stringify({ password: rbacForm.new_password })
+                                  });
+                                  const d4 = await r4.json();
+                                  if (!r4.ok) throw new Error(d4.error || 'Erro ao redefinir senha do guerreiro.');
+                                }
+
+                                setSuccessMessage('Alterações administrativas aplicadas com sucesso e registradas em auditoria!');
+                                setSelectedAdminUser(null);
+                                await loadAdminUsers();
+                                await loadAdminActionLogs(); // reload logs too
+                              } catch (err: any) {
+                                setErrorMessage(err.message || 'Erro ao aplicar atualizações administrativas.');
+                              } finally {
+                                setIsSavingRBAC(false);
+                              }
+                            }}
+                            disabled={isSavingRBAC}
+                            className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-neutral-850 disabled:text-stone-500 font-bold text-white text-xs uppercase rounded-xl transition cursor-pointer text-center"
+                          >
+                            {isSavingRBAC ? "Salvando Alterações..." : "Aplicar Modificações Críticas ⚡"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-neutral-500 text-xs italic">
+                      Selecione um guerreiro listado ao lado para ajustar seus privilégios RBAC, corrigir cadastros ou alterar senhas de acesso.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Admin Actions Audit Logs Table */}
+            <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-5 text-left">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-neutral-900">
+                <h3 className="text-xs font-black text-neutral-100 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Shield className="w-4 h-4 text-amber-500 animate-pulse" />
+                  Auditoria Legal de Trâmites Administrativos e RBAC (ADMIN_ACTION_LOGS)
+                </h3>
+                <span className="text-[10px] font-mono text-neutral-500">COMPLETE AUDIT REALTIME</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-neutral-900 bg-[#030303]/40">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#030303] text-stone-500 border-b border-neutral-900 text-[10px] font-mono uppercase">
+                      <th className="p-3">Log ID</th>
+                      <th className="p-3">Administrador Responsável</th>
+                      <th className="p-3">Ação Trâmite</th>
+                      <th className="p-3">Usuário Afetado</th>
+                      <th className="p-3">IP Operador</th>
+                      <th className="p-3 text-right">Data/Hora</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-900 font-mono">
+                    {adminActionLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-neutral-500 italic">Nenhuma ação administrativa registrada na auditoria.</td>
+                      </tr>
+                    ) : (
+                      [...adminActionLogs].reverse().map((log) => (
+                        <tr key={log.id} className="hover:bg-neutral-900/40 text-[11px]">
+                          <td className="p-3 text-neutral-500">{log.id}</td>
+                          <td className="p-3 text-neutral-300 font-bold">{log.admin_name}</td>
+                          <td className="p-3 text-amber-500 font-bold">{log.action}</td>
+                          <td className="p-3 text-stone-400">{log.target_user}</td>
+                          <td className="p-3 text-stone-500">{log.ip_address}</td>
+                          <td className="p-3 text-right text-stone-500">
+                            {new Date(log.created_at).toLocaleString('pt-BR')}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>

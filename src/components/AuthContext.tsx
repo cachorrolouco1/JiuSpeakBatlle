@@ -17,6 +17,16 @@ export interface UserProfile {
   is_admin?: boolean;
   permissions?: string[];
   last_login?: string;
+  username?: string;
+  username_locked?: boolean;
+  is_verified?: boolean;
+  last_profile_update?: string;
+  biography?: string;
+  social_instagram?: string;
+  social_twitter?: string;
+  language?: string;
+  theme_visual?: string;
+  privacy_profile?: 'public' | 'private';
   created_at: string;
 }
 
