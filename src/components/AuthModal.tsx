@@ -332,8 +332,8 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
   // Social Login Triggers (Simulated with live feedback matching users database)
   const handleSocialSignInClick = async (provider: 'Google' | 'Apple') => {
     setIsLoading(true);
-    const mockEmail = provider === 'Google' ? 'lucas.spider@jiuspeak.com' : 'apple-athlete@jiuspeak.id';
-    const mockName = provider === 'Google' ? "Lucas Spider Silva" : "Apple Fighter";
+    const mockEmail = provider === 'Google' ? 'marcus.miller@jiuspeak.com' : 'apple-athlete@jiuspeak.id';
+    const mockName = provider === 'Google' ? "Marcus Miller" : "Apple Fighter";
     
     const result = await triggerSocialSignIn(provider, mockEmail, mockName);
     setIsLoading(false);
@@ -517,36 +517,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onSuc
                 {isLoading ? 'Checando Chave De Luta...' : 'Entrar no Combate! 🥋'}
               </button>
 
-              {/* Login Social Structures */}
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-neutral-900" />
-                </div>
-                <div className="relative flex justify-center text-[10px] font-mono uppercase font-bold text-neutral-500">
-                  <span className="bg-[#050505] px-3">Ou conecte-se com</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button 
-                  type="button"
-                  onClick={() => handleSocialSignInClick('Google')}
-                  className="py-3 px-4 bg-neutral-950 border border-neutral-900 hover:border-neutral-800 rounded-xl font-mono text-xs font-bold text-neutral-300 hover:text-white transition duration-200 flex items-center justify-center gap-2 hover:scale-[1.01]"
-                >
-                  <span className="text-base">🌐</span>
-                  <span>Google Sign-In</span>
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => handleSocialSignInClick('Apple')}
-                  className="py-3 px-4 bg-neutral-950 border border-neutral-900 hover:border-neutral-800 rounded-xl font-mono text-xs font-bold text-neutral-300 hover:text-white transition duration-200 flex items-center justify-center gap-2 hover:scale-[1.01]"
-                >
-                  <span className="text-base">🍎</span>
-                  <span>Apple ID</span>
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2 mt-4 pt-2 border-t border-neutral-900">
+              <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-neutral-900">
                 <p className="text-center text-xs text-neutral-500">
                   Novo por aqui?{' '}
                   <button 

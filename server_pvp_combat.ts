@@ -913,18 +913,18 @@ export function setupPvP(io: Server, app: express.Express) {
     if (winnerId === 'draw') {
       p1EloDiff = +5;
       p2EloDiff = +5;
-      p1XpGain = 75;
-      p2XpGain = 75;
+      p1XpGain = 50;
+      p2XpGain = 50;
     } else if (winnerId === room.player1.id) {
       p1EloDiff = +25;
       p2EloDiff = -12;
-      p1XpGain = 150;
-      p2XpGain = 50;
+      p1XpGain = 100;
+      p2XpGain = 25;
     } else {
       p1EloDiff = -12;
       p2EloDiff = +25;
-      p1XpGain = 50;
-      p2XpGain = 150;
+      p1XpGain = 25;
+      p2XpGain = 100;
     }
 
     // Gravamos no DB se player1 é humano (não bot)

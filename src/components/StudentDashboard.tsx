@@ -857,7 +857,7 @@ export default function StudentDashboard({
               <span>Perfil & Faixa</span>
             </button>
 
-            {user?.role === 'ADMIN' && (
+            {user?.role === 'ADMIN' && ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'].includes(user?.email?.toLowerCase() || '') && (
               <button
                 onClick={() => { setActiveTab('finance'); setMobileMenuOpen(false); }}
                 className={`w-full text-left py-3 px-3.5 rounded-xl font-medium text-xs font-mono uppercase tracking-wider flex items-center gap-3 transition-all ${
@@ -967,6 +967,36 @@ export default function StudentDashboard({
               animate={{ opacity: 1, y: 0 }} 
               className="space-y-6"
             >
+              {/* BRANDED DIRECT PVP ARENA BORDER-SHINING BUTTON/BANNER */}
+              <div className="bg-gradient-to-r from-red-950/20 via-neutral-950 to-neutral-900 border-2 border-red-500/80 shadow-red-900/40 shadow-2xl rounded-2xl p-5 md:p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all hover:border-red-500">
+                <div className="absolute top-0 right-0 p-16 bg-gradient-to-bl from-red-500/20 via-transparent to-transparent -mr-6 -mt-6 rounded-full blur-2xl" />
+                
+                <div className="space-y-2 max-w-xl text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-gradient-to-r from-red-650 to-red-500 text-white font-mono font-black text-[10px] px-2 py-0.5 rounded tracking-widest uppercase animate-pulse flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-white rounded-full inline-block animate-ping" />
+                      AO VIVO
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-400">Desafie adversários em tempo real</span>
+                  </div>
+                  <h3 className="text-lg font-black font-sans uppercase tracking-tight text-white flex items-center gap-1.5 text-left">
+                    Arena PvP de Gladiadores ⚔️
+                  </h3>
+                  <p className="text-xs text-neutral-300 leading-relaxed max-w-lg text-left">
+                    Entre na arena online mais disputada da comunidade! Teste sua velocidade física e memorização de golpes em lutas com barra de vida digital e acumule <strong className="text-red-450">+100 XP por vitória</strong>.
+                  </p>
+                </div>
+                
+                <div className="relative z-10">
+                  <button 
+                    onClick={() => setActiveTab('pvp')}
+                    className="w-full md:w-auto px-5 py-3 bg-red-650 hover:bg-red-600 font-sans font-black text-xs text-white uppercase tracking-widest rounded-xl transition duration-150 transform hover:scale-105 active:scale-95 cursor-pointer shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
+                  >
+                    <span>Lutar na Arena PvP 🥋</span>
+                  </button>
+                </div>
+              </div>
+
               {/* CONTINUAR APRENDIZADO BANNER (Ultimate Call To Action) */}
               <div className="bg-gradient-to-r from-red-900/40 via-neutral-900 to-neutral-950 border border-red-900/50 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5">
                 <div className="absolute top-0 right-0 p-10 bg-gradient-to-bl from-red-500/10 via-transparent to-transparent -mr-6 -mt-6 rounded-full blur-2xl" />
@@ -1467,7 +1497,7 @@ export default function StudentDashboard({
               animate={{ opacity: 1 }} 
               className="space-y-6"
             >
-              {user?.role === 'ADMIN' ? (
+              {user?.role === 'ADMIN' && ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'].includes(user?.email?.toLowerCase() || '') ? (
                 <FinanceAdminDashboard />
               ) : (
                 <div className="bg-[#030303] border border-red-950 rounded-3xl p-8 max-w-lg mx-auto text-center my-12 shadow-2xl">
@@ -1880,6 +1910,11 @@ export default function StudentDashboard({
                   </p>
                 </div>
 
+              </div>
+
+              {/* INTEGRATED GLOBAL LEADERBOARD RANKING */}
+              <div id="integrated-ranking-profile" className="pt-2">
+                <GlobalRanking />
               </div>
             </motion.div>
           )}

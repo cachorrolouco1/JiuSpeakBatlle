@@ -9,7 +9,7 @@ import { LeaderboardUser } from '../types';
 import { useAuth } from './AuthContext';
 
 const INITIAL_RANKING: LeaderboardUser[] = [
-  { rank: 1, name: "Lucas 'Spider' Silva", belt: "Black", xp: 12450, accuracy: 98, avatar: "🇺🇸", country: "BR" },
+  { rank: 1, name: "Mestre Gabriel Souza", belt: "Black", xp: 12450, accuracy: 98, avatar: "🥋", country: "BR" },
   { rank: 2, name: "Marcus Miller", belt: "Brown", xp: 10890, accuracy: 95, avatar: "🇬🇧", country: "US" },
   { rank: 3, name: "Yuki 'Samurai' Sato", belt: "Purple", xp: 9540, accuracy: 92, avatar: "🇯🇵", country: "JP" },
   { rank: 4, name: "Elena Petrova", belt: "Purple", xp: 8710, accuracy: 91, avatar: "🇷🇺", country: "RU" },

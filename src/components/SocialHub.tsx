@@ -57,7 +57,7 @@ export default function SocialHub() {
   const [shareLoadingText, setShareLoadingText] = useState('');
 
   // Public Profile lookup state
-  const [searchQuery, setSearchQuery] = useState('lucas-spider');
+  const [searchQuery, setSearchQuery] = useState('marcus.miller');
   const [viewedProfile, setViewedProfile] = useState<any | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
@@ -966,7 +966,7 @@ export default function SocialHub() {
                           </div>
                           <div>
                             <span className="text-[9px] font-mono uppercase bg-red-950/60 text-red-500 border border-red-900 px-2.5 py-1 rounded font-black tracking-wider block w-max mx-auto">GRADUADO PELO TATAME</span>
-                            <h3 className="text-lg font-black text-white italic uppercase tracking-tight mt-2">{user ? `${user.first_name} ${user.last_name}` : 'Lucas Spider'}</h3>
+                            <h3 className="text-lg font-black text-white italic uppercase tracking-tight mt-2">{user ? `${user.first_name} ${user.last_name}` : 'Mestre Gabriel Souza'}</h3>
                             <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mt-0.5">{user ? user.belt_rank : 'Blue'} BELT GRADUATE</p>
                           </div>
                           <div className="bg-neutral-900/60 border border-neutral-850 p-3 rounded-xl max-w-xs mx-auto">
@@ -1177,7 +1177,7 @@ export default function SocialHub() {
               <div className="relative flex-1 w-full">
                 <input
                   type="text"
-                  placeholder="Ex: lucas-spider, Gabriel Souza, Elena Petrova..."
+                  placeholder="Ex: marcus.miller, Gabriel Souza, Elena Petrova..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-[#050505] border border-neutral-900 text-xs text-stone-200 placeholder:text-neutral-600 rounded-xl pl-4 pr-10 py-3 focus:outline-none focus:border-red-600 font-mono"
@@ -1191,10 +1191,10 @@ export default function SocialHub() {
               </div>
               <div className="flex gap-2 shrink-0 w-full md:w-auto">
                 <button
-                  onClick={() => lookupPublicProfile('lucas-spider')}
-                  className="flex-1 py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 text-[10px] font-mono uppercase rounded-lg transition"
+                  onClick={() => lookupPublicProfile('marcus.miller')}
+                  className="flex-1 py-2 px-3 bg-neutral-900 hover:bg-neutral-850 text-neutral-400 hover:text-white border border-neutral-800 text-[10px] font-mono uppercase rounded-lg transition"
                 >
-                  Lucas Spider 🥋
+                  Marcus Miller 🥋
                 </button>
                 <button
                   onClick={() => lookupPublicProfile('gabrielsouza')}

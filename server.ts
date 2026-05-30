@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -22,6 +23,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'jiuspeak-master-secret';
 
 // Parse JSON payloads up to 10MB to support base64 user profile uploads securely
 app.use(express.json({ limit: '10mb' }));
+
+// Permite CORS (Cross-Origin Resource Sharing) para conectar tanto o Website quanto o Aplicativo Móvel (Flutter/Native/Web) de forma robusta
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // --- SECURITY PROTOCOLS ---
 
@@ -131,7 +143,8 @@ const authenticateJWT = (req: AuthenticatedRequest, res: express.Response, next:
 // 3.1. RBAC Guard Middleware (Only ADMIN is permitted)
 const authorizeAdmin = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
   const user = req.user;
-  if (!user || (user.role !== 'ADMIN' && !user.is_admin)) {
+  const ALLOWED_ADMINS = ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'];
+  if (!user || (user.role !== 'ADMIN' && !user.is_admin) || !ALLOWED_ADMINS.includes(user.email.toLowerCase())) {
     const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
     dbStore.addSecurityLog(
       user ? `${user.first_name} ${user.last_name}` : 'Usuário Anônimo',
@@ -186,7 +199,8 @@ app.post('/api/auth/admin/login', (req, res) => {
     return res.status(401).json({ error: 'Credenciais inválidas ou senha incorreta.' });
   }
 
-  if (user.role !== 'ADMIN' && !user.is_admin) {
+  const ALLOWED_ADMINS = ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'];
+  if (user.role !== 'ADMIN' && !user.is_admin || !ALLOWED_ADMINS.includes(user.email.toLowerCase())) {
     dbStore.addSecurityLog(
       `${user.first_name} ${user.last_name}`,
       'Acesso Administrativo Bloqueado',
@@ -215,8 +229,9 @@ app.post('/api/auth/admin/verify-2fa', (req, res) => {
   }
 
   const user = dbStore.getUserById(id);
-  if (!user || (user.role !== 'ADMIN' && !user.is_admin)) {
-    return res.status(403).json({ error: 'Acesso restrito. Usuário inválido.' });
+  const ALLOWED_ADMINS = ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'];
+  if (!user || (user.role !== 'ADMIN' && !user.is_admin) || !ALLOWED_ADMINS.includes(user.email.toLowerCase())) {
+    return res.status(403).json({ error: 'Acesso restrito. Usuário inválido ou não autorizado.' });
   }
 
   if (code2FA !== '123456' && code2FA !== '080808') {
@@ -1849,6 +1864,8 @@ app.get('/api/admin/users', authenticateJWT as any, authorizeAdmin as any, (req:
       streak: u.streak,
       role: u.role || 'USER',
       is_admin: !!u.is_admin,
+      is_online: !!u.is_online,
+      last_login: u.last_login || '',
       is_verified: !!u.is_verified,
       is_locked: !!u.username_locked,
       is_blocked: u.verification_token === 'BLOCKED',
@@ -1931,6 +1948,46 @@ app.put('/api/admin/users/:id/status', authenticateJWT as any, authorizeAdmin as
     res.json({ success: true, message: block ? 'Guerreiro bloqueado militarmente com sucesso!' : 'Guerreiro desbloqueado com sucesso!' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Erro ao atualizar status da conta.', details: err.message });
+  }
+});
+
+// Force administrative toggle of user online state simulating connections/disconnections (Only Admin)
+app.put('/api/admin/users/:id/simulate-connection', authenticateJWT as any, authorizeAdmin as any, (req: AuthenticatedRequest, res) => {
+  try {
+    const targetId = req.params.id;
+    const { is_online } = req.body; // boolean
+    const admin = req.user!;
+    const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '127.0.0.1';
+
+    const targetUser = dbStore.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Guerreiro não localizado.' });
+    }
+
+    const updates: Partial<UserRow> = {
+      is_online: !!is_online,
+    };
+    if (is_online) {
+      updates.last_login = new Date().toISOString();
+    }
+    dbStore.updateUser(targetId, updates);
+
+    dbStore.addAdminActionLog(
+      admin.id,
+      `${admin.first_name} ${admin.last_name}`,
+      is_online ? 'Simulação de Conexão' : 'Simulação de Desconexão',
+      targetUser.email,
+      clientIp
+    );
+
+    res.json({ 
+      success: true, 
+      message: is_online 
+        ? `Guerreiro ${targetUser.first_name} agora simulado como ONLINE no Dojo!` 
+        : `Guerreiro ${targetUser.first_name} agora simulado como OFFLINE (Desconectado)!` 
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Erro ao simular conexão.', details: err.message });
   }
 });
 

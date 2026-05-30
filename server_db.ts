@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 export interface UserRow {
   id: string;
@@ -349,28 +350,6 @@ const MARKETPLACE_CONFIG_FILE = path.join(process.cwd(), 'marketplace_config.jso
 // Initialize with database representation populated by default users
 const DEFAULTS: UserRow[] = [
   {
-    id: 'u1',
-    first_name: "Lucas",
-    last_name: "'Spider' Silva",
-    email: "lucas.spider@jiuspeak.com",
-    phone: "+55 (11) 99999-9999",
-    address: "Ipiranga, São Paulo, SP",
-    password_hash: "hashed",
-    profile_image: "🥋",
-    belt_rank: "Black",
-    xp: 12450,
-    streak: 15,
-    coins: 4500,
-    is_vip: true,
-    is_online: true,
-    email_verified: true,
-    role: "ADMIN",
-    is_admin: true,
-    permissions: ["all"],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
     id: 'u2',
     first_name: "Marcus",
     last_name: "Miller",
@@ -599,11 +578,11 @@ class DatabaseManager {
 
   private load() {
     try {
+      let updated = false;
       if (fs.existsSync(DB_FILE)) {
         const data = fs.readFileSync(DB_FILE, 'utf8');
         this.users = JSON.parse(data);
         
-        let updated = false;
         this.users = this.users.map(u => {
           let hasChange = false;
           let role = u.role;
@@ -613,7 +592,7 @@ class DatabaseManager {
           let username_locked = u.username_locked;
           let is_verified = u.is_verified;
           
-          if (u.email === 'lucas.spider@jiuspeak.com' || u.id === 'u1' || u.email === 'maxtechptbr@gmail.com' || u.email === 'maxtechptbr9@gmail.com') {
+          if (u.email === 'maxtechptbr@gmail.com' || u.email === 'maxtechptbr9@gmail.com' || u.email === 'maxtechbtbr@gmail.com') {
             if (role !== 'ADMIN' || !is_admin) {
               role = 'ADMIN';
               is_admin = true;
@@ -680,12 +659,65 @@ class DatabaseManager {
           }
           return u;
         });
-        
-        if (updated) {
-          this.save();
-        }
       } else {
         this.users = [...DEFAULTS];
+        updated = true;
+      }
+
+      // Ensure administrative users always exist and are correctly configured
+      const targetAdminEmails = ['maxtechbtbr@gmail.com', 'maxtechptbr@gmail.com', 'maxtechptbr9@gmail.com'];
+      for (const email of targetAdminEmails) {
+        const index = this.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+        if (index === -1) {
+          this.users.push({
+            id: 'usr_admin_' + email.split('@')[0],
+            first_name: "Admin",
+            last_name: "Guerreiro",
+            email: email,
+            phone: "(11) 99999-9999",
+            address: "São Paulo, SP",
+            password_hash: bcrypt.hashSync("98922678aA", 10),
+            profile_image: "🥋",
+            belt_rank: "Black",
+            xp: 15000,
+            streak: 30,
+            coins: 5000,
+            is_vip: true,
+            is_online: false,
+            email_verified: true,
+            role: "ADMIN",
+            is_admin: true,
+            permissions: ["all"],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          updated = true;
+        } else {
+          const exists = this.users[index];
+          let needsUpdate = false;
+          if (exists.role !== 'ADMIN' || !exists.is_admin) {
+            exists.role = 'ADMIN';
+            exists.is_admin = true;
+            exists.permissions = ['all'];
+            needsUpdate = true;
+          }
+          try {
+            const isPasswordCorrectObj = bcrypt.compareSync("98922678aA", exists.password_hash);
+            if (!isPasswordCorrectObj) {
+              exists.password_hash = bcrypt.hashSync("98922678aA", 10);
+              needsUpdate = true;
+            }
+          } catch (passErr) {
+            exists.password_hash = bcrypt.hashSync("98922678aA", 10);
+            needsUpdate = true;
+          }
+          if (needsUpdate) {
+            updated = true;
+          }
+        }
+      }
+
+      if (updated) {
         this.save();
       }
     } catch (e) {

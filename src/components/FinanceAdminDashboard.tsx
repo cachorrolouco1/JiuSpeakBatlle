@@ -140,6 +140,7 @@ export default function FinanceAdminDashboard() {
   const [adminActionLogs, setAdminActionLogs] = useState<any[]>([]);
   const [selectedAdminUser, setSelectedAdminUser] = useState<any | null>(null);
   const [isSavingRBAC, setIsSavingRBAC] = useState(false);
+  const [isSimulatingConn, setIsSimulatingConn] = useState<string | null>(null);
   const [rbacForm, setRbacForm] = useState({
     first_name: '',
     last_name: '',
@@ -496,6 +497,34 @@ export default function FinanceAdminDashboard() {
       }
     } catch (err: any) {
       console.error("Erro ao carregar logs de auditoria:", err);
+    }
+  };
+
+  const handleSimulateConnection = async (userId: string, targetOnline: boolean) => {
+    setIsSimulatingConn(userId);
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/simulate-connection`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_online: targetOnline })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage(data.message);
+        await loadAdminUsers();
+        await loadAdminActionLogs();
+      } else {
+        setErrorMessage(data.error || 'Erro ao simular conexão do guerreiro.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erro ao simular conexão.');
+    } finally {
+      setIsSimulatingConn(null);
     }
   };
 
@@ -1324,7 +1353,6 @@ export default function FinanceAdminDashboard() {
                       onChange={e => setSelectedStudentId(e.target.value)}
                       className="w-full bg-[#030303] border border-neutral-800 rounded-lg py-2 px-3 text-xs text-white focus:outline-none"
                     >
-                      <option value="u1">Lucas 'Spider' Silva (Black Belt)</option>
                       <option value="u2">Marcus Miller (Brown Belt)</option>
                       <option value="u3">Yuki 'Samurai' Sato (Purple Belt)</option>
                       <option value="u4">Elena Petrova (Purple Belt)</option>
@@ -2623,7 +2651,153 @@ export default function FinanceAdminDashboard() {
 
         {/* 6. RBAC CONTROLS & AUDIT ACTIONS LOGS */}
         {activeTab === 'rbac_users' && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fade-in">
+            
+            {/* 📊 DASHBOARD DE MONITORAMENTO DE STATUS DO ADMINISTRADOR */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <span className="text-neutral-500 text-[10px] block uppercase font-mono font-bold">Total de Guerreiros</span>
+                  <span className="text-2xl font-black text-white block mt-1 font-mono">{adminUsers.length}</span>
+                </div>
+                <div className="text-[10px] text-neutral-400 font-mono mt-2">Cadastrados no tatame virtual</div>
+              </div>
+              <div className="bg-[#0a0a0a] border border-green-950/40 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-neutral-400 text-[10px] uppercase font-mono font-bold">Atletas Online</span>
+                  </div>
+                  <span className="text-2xl font-black text-green-500 block mt-1 font-mono">
+                    {adminUsers.filter(u => u.is_online).length}
+                  </span>
+                </div>
+                <div className="text-[10px] text-neutral-400 font-mono mt-2">Ativos em tempo real agora</div>
+              </div>
+              <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <span className="text-neutral-500 text-[10px] block uppercase font-mono font-bold">Atletas Offline</span>
+                  <span className="text-2xl font-black text-stone-400 block mt-1 font-mono">
+                    {adminUsers.filter(u => !u.is_online).length}
+                  </span>
+                </div>
+                <div className="text-[10px] text-neutral-400 font-mono mt-2">Conectados recentemente</div>
+              </div>
+              <div className="bg-[#0a0a0a] border border-amber-950/40 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <span className="text-neutral-400 text-[10px] block uppercase font-mono font-bold">Taxa de Ocupação</span>
+                  <span className="text-2xl font-black text-amber-500 block mt-1 font-mono">
+                    {adminUsers.length > 0 
+                      ? Math.round((adminUsers.filter(u => u.is_online).length / adminUsers.length) * 100) 
+                      : 0}%
+                  </span>
+                </div>
+                <div className="w-full bg-neutral-900 h-1.5 rounded-full overflow-hidden mt-2">
+                  <div 
+                    className="bg-gradient-to-r from-amber-500 to-green-500 h-full rounded-full transition-all duration-300"
+                    style={{ 
+                      width: `${adminUsers.length > 0 
+                        ? (adminUsers.filter(u => u.is_online).length / adminUsers.length) * 100 
+                        : 0}%` 
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* STATUS DIALS AND RATIO VISUALIZATIONS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-5 text-left">
+                <span className="text-[10px] font-mono text-neutral-400 uppercase font-bold block mb-3">Distribuição de Status (Aparelho de Medição)</span>
+                <div className="flex items-center justify-around py-2">
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    {/* SVG Circular Donut Chart */}
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle 
+                        cx="48" 
+                        cy="48" 
+                        r="38" 
+                        stroke="#1a1a1a" 
+                        strokeWidth="8" 
+                        fill="transparent" 
+                      />
+                      <circle 
+                        cx="48" 
+                        cy="48" 
+                        r="38" 
+                        stroke="#22c55e" 
+                        strokeWidth="8" 
+                        fill="transparent" 
+                        strokeDasharray={2 * Math.PI * 38}
+                        strokeDashoffset={2 * Math.PI * 38 * (1 - (adminUsers.length > 0 ? (adminUsers.filter(u => u.is_online).length / adminUsers.length) : 0))}
+                        className="transition-all duration-500"
+                      />
+                    </svg>
+                    <div className="absolute text-center bg-transparent">
+                      <span className="text-sm font-black text-stone-100 block font-mono">
+                        {adminUsers.length > 0 ? Math.round((adminUsers.filter(u => u.is_online).length / adminUsers.length) * 100) : 0}%
+                      </span>
+                      <span className="text-[7px] text-neutral-500 block uppercase font-mono">on-line</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded bg-green-500" />
+                      <span className="text-neutral-300 font-mono">Ativos: {adminUsers.filter(u => u.is_online).length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded bg-neutral-800" />
+                      <span className="text-neutral-500 font-mono">Inativos: {adminUsers.filter(u => !u.is_online).length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-5 text-left">
+                <span className="text-[10px] font-mono text-neutral-400 uppercase font-bold block mb-3">Análise de Categorias por Conexão</span>
+                <div className="space-y-3 pt-1">
+                  {/* ADMIN progress load factor */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-mono text-neutral-400">
+                      <span>ADMINISTRADORES ({adminUsers.filter(u => u.role === 'ADMIN').length})</span>
+                      <span className="text-green-400 font-bold">
+                        {adminUsers.filter(u => u.role === 'ADMIN' && u.is_online).length} On
+                      </span>
+                    </div>
+                    <div className="w-full bg-neutral-950 h-2 rounded-full overflow-hidden border border-neutral-900">
+                      <div 
+                        className="bg-red-500 h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${adminUsers.filter(u => u.role === 'ADMIN').length > 0 
+                            ? (adminUsers.filter(u => u.role === 'ADMIN' && u.is_online).length / adminUsers.filter(u => u.role === 'ADMIN').length) * 100 
+                            : 0}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* USER progress load factor */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-mono text-neutral-400">
+                      <span>ALUNOS / ATLETAS ({adminUsers.filter(u => u.role !== 'ADMIN' && u.role !== 'MODERATOR').length})</span>
+                      <span className="text-green-400 font-bold">
+                        {adminUsers.filter(u => u.role !== 'ADMIN' && u.role !== 'MODERATOR' && u.is_online).length} On
+                      </span>
+                    </div>
+                    <div className="w-full bg-neutral-950 h-2 rounded-full overflow-hidden border border-neutral-900">
+                      <div 
+                        className="bg-amber-500 h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${adminUsers.filter(u => u.role !== 'ADMIN' && u.role !== 'MODERATOR').length > 0 
+                            ? (adminUsers.filter(u => u.role !== 'ADMIN' && u.role !== 'MODERATOR' && u.is_online).length / adminUsers.filter(u => u.role !== 'ADMIN' && u.role !== 'MODERATOR').length) * 100 
+                            : 0}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             
             <div className="bg-[#0a0a0a] border border-neutral-900 rounded-2xl p-5">
               <div className="border-b border-neutral-900 pb-3 mb-4">
@@ -2663,19 +2837,21 @@ export default function FinanceAdminDashboard() {
                           <th className="p-3">Atleta ID</th>
                           <th className="p-3">Nome / Usuário</th>
                           <th className="p-3">E-mail</th>
-                          <th className="p-3">Cargo (Role)</th>
+                          <th className="p-3">Cargo</th>
                           <th className="p-3">Estado</th>
-                          <th className="p-3 text-right">Ação</th>
+                          <th className="p-3">Conexão</th>
+                          <th className="p-3">Último Login</th>
+                          <th className="p-3 text-right">Ações</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-neutral-900 font-mono">
+                      <tbody className="divide-y divide-neutral-900 font-mono text-left">
                         {adminUsers.map((u) => {
                           const isSel = selectedAdminUser?.id === u.id;
                           return (
                             <tr key={u.id} className={`hover:bg-neutral-900/40 transition-colors ${isSel ? 'bg-red-950/20 text-white' : 'text-neutral-300'}`}>
                               <td className="p-3 text-neutral-500 text-[10px]">{u.id}</td>
-                              <td className="p-3">
-                                <div className="font-sans font-bold text-white text-xs">{u.first_name} {u.last_name}</div>
+                              <td className="p-3 font-sans">
+                                <div className="font-bold text-white text-xs">{u.first_name} {u.last_name}</div>
                                 <div className="text-[10px] text-neutral-400 text-left">@{u.username || 'sem_username'}</div>
                               </td>
                               <td className="p-3 text-neutral-400 font-sans">{u.email}</td>
@@ -2697,23 +2873,54 @@ export default function FinanceAdminDashboard() {
                                   <span className="text-green-500 block text-[10px] uppercase">● ATIVO</span>
                                 )}
                               </td>
+                              <td className="p-3">
+                                {u.is_online ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                    <span className="text-green-400 text-[10px] font-bold tracking-tight uppercase">ONLINE</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-700" />
+                                    <span className="text-neutral-500 text-[10px] font-bold tracking-tight uppercase">OFFLINE</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-[10px] text-neutral-400 font-sans">
+                                {u.last_login ? new Date(u.last_login).toLocaleString('pt-BR') : 'nunca logou'}
+                              </td>
                               <td className="p-3 text-right">
-                                <button
-                                  onClick={() => {
-                                    setSelectedAdminUser(u);
-                                    setRbacForm({
-                                      first_name: u.first_name || '',
-                                      last_name: u.last_name || '',
-                                      username: u.username || '',
-                                      role: u.role || 'USER',
-                                      is_blocked: !!u.is_blocked,
-                                      new_password: ''
-                                    });
-                                  }}
-                                  className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-stone-300 hover:text-white rounded-lg text-[10px] transition font-sans cursor-pointer whitespace-nowrap"
-                                >
-                                  Gerenciar
-                                </button>
+                                <div className="inline-flex gap-1.5 items-center justify-end">
+                                  {/* Connection simulator toggler */}
+                                  <button
+                                    onClick={() => handleSimulateConnection(u.id, !u.is_online)}
+                                    disabled={isSimulatingConn === u.id}
+                                    className={`px-2 py-1 rounded text-[9px] font-mono font-bold transition-all border cursor-pointer ${
+                                      u.is_online 
+                                        ? 'bg-red-950/20 text-red-400 border-red-900/40 hover:bg-red-950/60' 
+                                        : 'bg-green-950/20 text-green-400 border-green-900/40 hover:bg-green-950/60'
+                                    }`}
+                                    title={u.is_online ? 'Forçar Desconexão de Tatame' : 'Simular Entrada Online'}
+                                  >
+                                    {isSimulatingConn === u.id ? '...' : (u.is_online ? '🔌 Force Off' : '⚡ Sim On')}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAdminUser(u);
+                                      setRbacForm({
+                                        first_name: u.first_name || '',
+                                        last_name: u.last_name || '',
+                                        username: u.username || '',
+                                        role: u.role || 'USER',
+                                        is_blocked: !!u.is_blocked,
+                                        new_password: ''
+                                      });
+                                    }}
+                                    className="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-stone-300 hover:text-white rounded text-[9px] transition font-sans cursor-pointer whitespace-nowrap"
+                                  >
+                                    Gerenciar
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );

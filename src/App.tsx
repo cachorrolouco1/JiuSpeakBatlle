@@ -352,7 +352,7 @@ export default function App() {
                 {/* Neon shadow lines overlay */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-neutral-950/90 to-transparent p-4 flex flex-col justify-end">
                   <span className="text-[9px] font-mono text-red-400 font-bold uppercase">UFC Style Framing</span>
-                  <p className="text-xs font-bold text-white leading-tight">Mestre Lucas 'Spider' Silva no Tatame Internacional</p>
+                  <p className="text-xs font-bold text-white leading-tight">Mestre Gabriel Souza no Tatame Internacional</p>
                 </div>
               </div>
 
