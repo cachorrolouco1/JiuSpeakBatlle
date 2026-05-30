@@ -1,0 +1,18 @@
+[
+  {
+    "id": "pl_1",
+    "admin_id": "usr_admin_maxtechptbr9",
+    "action": "Criação de Preço de Assinatura",
+    "old_value": "Nenhum",
+    "new_value": "Mensalidade Premium: R$ 19,90",
+    "created_at": "2026-05-27T18:40:29.780Z"
+  },
+  {
+    "id": "pl_2",
+    "admin_id": "usr_admin_maxtechptbr9",
+    "action": "Ativação de Promoção Black Friday",
+    "old_value": "Inativo",
+    "new_value": "BFCOMBAT30 (30% OFF + 5% Cashback)",
+    "created_at": "2026-05-28T18:40:29.781Z"
+  }
+]

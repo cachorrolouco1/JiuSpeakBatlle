@@ -1,0 +1,32 @@
+[
+  {
+    "id": "sub_1",
+    "user_id": "u1",
+    "user_name": "Gabriel Souza",
+    "plan": "VIP",
+    "status": "Ativa",
+    "price": 2990,
+    "expires_at": "2026-06-24T18:40:29.779Z",
+    "created_at": "2026-05-25T18:40:29.779Z"
+  },
+  {
+    "id": "sub_2",
+    "user_id": "u2",
+    "user_name": "Marcus Miller",
+    "plan": "Premium",
+    "status": "Ativa",
+    "price": 1500,
+    "expires_at": "2026-06-11T18:40:29.779Z",
+    "created_at": "2026-05-12T18:40:29.779Z"
+  },
+  {
+    "id": "sub_3",
+    "user_id": "u4",
+    "user_name": "Elena Petrova",
+    "plan": "Premium",
+    "status": "Cancelada",
+    "price": 1500,
+    "expires_at": "2026-05-28T18:40:29.779Z",
+    "created_at": "2026-04-28T18:40:29.779Z"
+  }
+]

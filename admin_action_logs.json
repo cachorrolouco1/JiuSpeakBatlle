@@ -1,0 +1,11 @@
+[
+  {
+    "id": "actlog_1",
+    "admin_id": "usr_admin_maxtechptbr9",
+    "admin_name": "Admin Guerreiro",
+    "action": "Promover para Moderador",
+    "target_user": "marcus.miller@jiuspeak.com",
+    "ip_address": "187.12.34.56",
+    "created_at": "2026-05-28T18:40:29.779Z"
+  }
+]

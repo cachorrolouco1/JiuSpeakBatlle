@@ -1,0 +1,42 @@
+[
+  {
+    "id": "log_exaq0986d",
+    "admin_name": "testando@teste.com",
+    "action": "Falha de Autenticação",
+    "ip_address": "2804:14d:5c2b:6245:cddb:9053:7e97:49c1, 169.254.169.126",
+    "details": "Tentativa de login com e-mail não cadastrado",
+    "created_at": "2026-05-30T19:51:54.590Z"
+  },
+  {
+    "id": "log_8e0enstpz",
+    "admin_name": "testando@teste.com",
+    "action": "Falha de Autenticação",
+    "ip_address": "2804:14d:5c2b:6245:cddb:9053:7e97:49c1, 169.254.169.126",
+    "details": "Tentativa de login com e-mail não cadastrado",
+    "created_at": "2026-05-30T19:51:34.495Z"
+  },
+  {
+    "id": "log_1",
+    "admin_name": "Admin Guerreiro",
+    "action": "Autenticação de Acesso Admin",
+    "ip_address": "187.12.34.56",
+    "details": "Login de administrador aprovado via autenticação 2FA",
+    "created_at": "2026-05-30T15:40:29.779Z"
+  },
+  {
+    "id": "log_2",
+    "admin_name": "Admin Guerreiro",
+    "action": "Atualização de Conta Bancária",
+    "ip_address": "187.12.34.56",
+    "details": "Dados da conta do Banco do Brasil atualizados com criptografia",
+    "created_at": "2026-05-29T18:40:29.779Z"
+  },
+  {
+    "id": "log_3",
+    "admin_name": "Admin Guerreiro",
+    "action": "Saque Solicitado",
+    "ip_address": "187.12.34.56",
+    "details": "Solicitação de saque manual de US$ 125.00 para conta PIX enviada",
+    "created_at": "2026-05-25T18:40:29.779Z"
+  }
+]
